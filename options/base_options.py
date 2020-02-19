@@ -44,12 +44,6 @@ class BaseOptions:
         )
         # model parameters
         parser.add_argument(
-            "--model",
-            type=str,
-            default="cycle_gan",
-            help="chooses which model to use. [cycle_gan | pix2pix | test | colorization]",
-        )
-        parser.add_argument(
             "--input_nc",
             type=int,
             default=3,

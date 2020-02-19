@@ -187,6 +187,15 @@ def define_G(
             use_dropout=use_dropout,
             n_blocks=6,
         )
+    elif netG == "continual":
+        net = ContinualGenerator(
+            input_nc,
+            output_nc,
+            ngf,
+            norm_layer=norm_layer,
+            use_dropout=use_dropout,
+            n_blocks=6,
+        )
     elif netG == "unet_128":
         net = UnetGenerator(
             input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout
@@ -776,3 +785,181 @@ class PixelDiscriminator(nn.Module):
     def forward(self, input):
         """Standard forward."""
         return self.net(input)
+
+
+class ContinualGenerator(nn.Module):
+    """Resnet-based generator that consists of Resnet blocks between a few downsampling/upsampling operations.
+    We adapt Torch code and idea from Justin Johnson's neural style transfer project(https://github.com/jcjohnson/fast-neural-style)
+    """
+
+    def __init__(
+        self,
+        input_nc=3,
+        output_nc=3,
+        ngf=64,
+        norm_layer=nn.BatchNorm2d,
+        use_dropout=False,
+        n_blocks=6,
+        padding_type="reflect",
+    ):
+        """Construct a Resnet-based generator
+        Parameters:
+            input_nc (int)      -- the number of channels in input images
+            output_nc (int)     -- the number of channels in output images
+            ngf (int)           -- the number of filters in the last conv layer
+            norm_layer          -- normalization layer
+            use_dropout (bool)  -- if use dropout layers
+            n_blocks (int)      -- the number of ResNet blocks
+            padding_type (str)  -- the name of padding layer in conv layers: reflect | replicate | zero
+        """
+        assert n_blocks >= 0
+        assert n_blocks % 2 == 0
+        super().__init__()
+        if type(norm_layer) == functools.partial:
+            use_bias = norm_layer.func == nn.InstanceNorm2d
+        else:
+            use_bias = norm_layer == nn.InstanceNorm2d
+
+        encoder = [
+            nn.ReflectionPad2d(3),
+            nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0, bias=use_bias),
+            norm_layer(ngf),
+            nn.ReLU(True),
+        ]
+
+        n_downsampling = 2
+        for i in range(n_downsampling):  # add downsampling layers
+            mult = 2 ** i
+            encoder += [
+                nn.Conv2d(
+                    ngf * mult,
+                    ngf * mult * 2,
+                    kernel_size=3,
+                    stride=2,
+                    padding=1,
+                    bias=use_bias,
+                ),
+                norm_layer(ngf * mult * 2),
+                nn.ReLU(True),
+            ]
+
+        mult = 2 ** n_downsampling
+        for i in range(n_blocks // 2):  # add ResNet blocks
+
+            encoder += [
+                ResnetBlock(
+                    ngf * mult,
+                    padding_type=padding_type,
+                    norm_layer=norm_layer,
+                    use_dropout=use_dropout,
+                    use_bias=use_bias,
+                )
+            ]
+
+        decoder = []
+        depth = []
+        rotation = []
+        for i in range(n_blocks // 2):  # add ResNet blocks
+            decoder += [
+                ResnetBlock(
+                    ngf * mult,
+                    padding_type=padding_type,
+                    norm_layer=norm_layer,
+                    use_dropout=use_dropout,
+                    use_bias=use_bias,
+                )
+            ]
+            depth += [
+                ResnetBlock(
+                    ngf * mult,
+                    padding_type=padding_type,
+                    norm_layer=norm_layer,
+                    use_dropout=use_dropout,
+                    use_bias=use_bias,
+                )
+            ]
+            rotation += [
+                ResnetBlock(
+                    ngf * mult,
+                    padding_type=padding_type,
+                    norm_layer=norm_layer,
+                    use_dropout=use_dropout,
+                    use_bias=use_bias,
+                )
+            ]
+
+        for i in range(n_downsampling):  # add upsampling layers
+            mult = 2 ** (n_downsampling - i)
+            decoder += [
+                nn.ConvTranspose2d(
+                    ngf * mult,
+                    int(ngf * mult / 2),
+                    kernel_size=3,
+                    stride=2,
+                    padding=1,
+                    output_padding=1,
+                    bias=use_bias,
+                ),
+                norm_layer(int(ngf * mult / 2)),
+                nn.ReLU(True),
+            ]
+            depth += [
+                nn.ConvTranspose2d(
+                    ngf * mult,
+                    int(ngf * mult / 2),
+                    kernel_size=3,
+                    stride=2,
+                    padding=1,
+                    output_padding=1,
+                    bias=use_bias,
+                ),
+                norm_layer(int(ngf * mult / 2)),
+                nn.ReLU(True),
+            ]
+
+        rotation += [
+            nn.Conv2d(
+                depth[0].conv_block[1].weight.shape[0], 1, kernel_size=1, padding=0
+            )
+        ]
+        mult = 2 ** n_downsampling
+        rotation += [
+            nn.Conv2d(1, 1, kernel_size=3, stride=2, padding=1, bias=use_bias,),
+            norm_layer(1),
+            nn.LeakyReLU(True),
+        ]
+
+        rotation += [FCView()]
+        rotation += [nn.Linear(1024, 256)]
+        rotation += [nn.LeakyReLU()]
+        rotation += [nn.Linear(256, 4)]
+
+        decoder += [nn.ReflectionPad2d(3)]
+        depth += [nn.ReflectionPad2d(3)]
+        decoder += [nn.Conv2d(ngf, 3, kernel_size=7, padding=0)]
+        depth += [nn.Conv2d(ngf, 1, kernel_size=7, padding=0)]
+        decoder += [nn.Tanh()]
+
+        self.encoder = nn.Sequential(*encoder)
+        self.decoder = nn.Sequential(*decoder)
+        self.depth = nn.Sequential(*depth)
+        self.rotation = nn.Sequential(*rotation)
+
+    def forward(self, input):
+        """Standard forward"""
+        return self.decoder(self.encoder(input))
+
+
+class FCView(nn.Module):
+    def __init__(self):
+        super(FCView, self).__init__()
+
+    # noinspection PyMethodMayBeStatic
+    def forward(self, x):
+        n_b = x.data.size(0)
+        x = x.view(n_b, -1)
+        return x
+
+    def __repr__(self):
+        return "view(nB, -1)"
+

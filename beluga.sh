@@ -26,7 +26,7 @@ unzip $SLURM_TMPDIR/s2w.zip -d $SLURM_TMPDIR > /dev/null
 
 # 4. Launch your job, tell it to save the model in $SLURM_TMPDIR
 #    and look for the dataset into $SLURM_TMPDIR
-python train.py --dataroot $SLURM_TMPDIR --name base_cyclegan_WS --model cycle_gan --checkpoints_dir "/scratch/vsch/continual/checkpoints" --display_freq 1000 --batch_size 3
+python train.py --dataroot $SLURM_TMPDIR/s2w --name base_cyclegan_WS --model cycle_gan --checkpoints_dir "/scratch/vsch/continual/checkpoints" --display_freq 1000 --batch_size 3
 
 # 5. Copy whatever you want to save on $SCRATCH
 cp $SLURM_TMPDIR/<to_save> $SCRATCH

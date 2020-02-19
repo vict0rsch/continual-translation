@@ -1,7 +1,7 @@
 from .base_options import BaseOptions
 
 
-class TrainOptions(BaseOptions):
+class ContinualOptions(BaseOptions):
     """This class includes training options.
     It also includes shared options defined in BaseOptions.
     """
@@ -137,7 +137,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument(
             "--model",
             type=str,
-            default="cycle_gan",
+            default="continual",
             help="chooses which model to use. [cycle_gan | pix2pix | test | colorization]",
         )
 
