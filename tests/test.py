@@ -25,8 +25,21 @@ if __name__ == "__main__":
     x = torch.rand(1, 3, 256, 256)
     z = e(x)
 
-    for i, b in enumerate(dataset):
-        print(b["angleA"])
-        print(b["angleB"])
-        if i > 20:
-            break
+    b = next(iter(dataset))
+
+    print("Setting input")
+    model.set_input(b)
+    print("Forward")
+    model.forward()
+    print("Setting requires_grad : False to netDs")
+    model.set_requires_grad(
+        [model.netD_A, model.netD_B], False
+    )  # Ds require no gradients when optimizing Gs
+    print("Backward")
+    model.optimizer_G.zero_grad()  # set G_A and G_B's gradients to zero
+    model.backward_G()  # calculate gradients for G_A and G_B
+    for d in dir(model):
+        if d.startswith("loss_") and "names" not in d:
+            print("{:15} {:.3f}".format(d, getattr(model, d).item()))
+    print("Step")
+    model.optimizer_G.step()  # update G_A and G_B's weights

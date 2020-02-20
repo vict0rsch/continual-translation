@@ -121,3 +121,25 @@ def decode_md(img):
         ims = [np.expand_dims(im, 0) for im in ims]
 
     return np.concatenate(ims, axis=0)
+
+
+ref_one_hot = {
+    0: [1, 0, 0, 0],
+    90: [0, 1, 0, 0],
+    180: [0, 0, 1, 0],
+    270: [0, 0, 0, 1],
+}
+ref = {k: int(np.argmax(v)) for k, v in ref_one_hot.items()}
+
+
+def angle_to_tensor(angle, one_hot=False):
+    global ref
+    global ref_one_hot
+    angle = int(angle)
+    assert angle in ref, "Unknown angle {}".format(angle)
+    r = ref_one_hot if one_hot else ref
+    return torch.tensor(r[angle])
+
+
+def angles_to_tensors(angles, one_hot=False):
+    return torch.cat([angle_to_tensor(a, one_hot).unsqueeze(0) for a in angles], dim=0)
