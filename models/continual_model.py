@@ -4,6 +4,7 @@ from util.image_pool import ImagePool
 from .base_model import BaseModel
 from . import networks
 from util.util import angles_to_tensors
+import torch.nn as nn
 
 
 class ContinualModel(BaseModel):
@@ -233,7 +234,6 @@ class ContinualModel(BaseModel):
         The option 'direction' can be used to swap domain A and domain B.
         """
         AtoB = self.opt.direction == "AtoB"
-
         self.real_A = input["A" if AtoB else "B"].to(self.device)
         self.depth_A = input["dA" if AtoB else "dB"].to(self.device).float()
         self.rot_A = input["rA" if AtoB else "rB"].to(self.device)
@@ -249,12 +249,20 @@ class ContinualModel(BaseModel):
     def forward(self):
         """Run forward pass; called by both functions
         <optimize_parameters> and <test>."""
-        self.z_A = self.netG_A.encoder(self.real_A)
-        self.z_B = self.netG_B.encoder(self.real_B)
-        self.fake_B = self.netG_A.decoder(self.z_A)  # G_A(A)
-        self.rec_A = self.netG_B(self.fake_B)  # G_B(G_A(A))
-        self.fake_A = self.netG_B.decoder(self.z_B)  # G_B(B)
-        self.rec_B = self.netG_A(self.fake_A)  # G_A(G_B(B))
+        if isinstance(self.netG_A, nn.DataParallel):
+            self.z_A = self.netG_A.module.encoder(self.real_A)
+            self.z_B = self.netG_B.module.encoder(self.real_B)
+            self.fake_B = self.netG_A.module.decoder(self.z_A)  # G_A(A)
+            self.rec_A = self.netG_B(self.fake_B)  # G_B(G_A(A))
+            self.fake_A = self.netG_B.module.decoder(self.z_B)  # G_B(B)
+            self.rec_B = self.netG_A(self.fake_A)  # G_A(G_B(B))
+        else:
+            self.z_A = self.netG_A.encoder(self.real_A)
+            self.z_B = self.netG_B.encoder(self.real_B)
+            self.fake_B = self.netG_A.decoder(self.z_A)  # G_A(A)
+            self.rec_A = self.netG_B(self.fake_B)  # G_B(G_A(A))
+            self.fake_A = self.netG_B.decoder(self.z_B)  # G_B(B)
+            self.rec_B = self.netG_A(self.fake_A)  # G_A(G_B(B))
 
     def backward_D_basic(self, netD, real, fake):
         """Calculate GAN loss for the discriminator
@@ -307,28 +315,43 @@ class ContinualModel(BaseModel):
 
         self.loss_G = 0
         if self.should_compute("depth"):
-            print("depth loss")
-            self.depth_A_pred = self.netG_A.depth(self.z_A)
-            self.depth_B_pred = self.netG_A.depth(self.z_B)
-            self.loss_G_A_d = self.depthCriterion(self.depth_A_pred, self.depth_A)
-            self.loss_G_B_d = self.depthCriterion(self.depth_B_pred, self.depth_B)
+            # print("depth loss")
+            if isinstance(self.netG_A, nn.DataParallel):
+                self.depth_A_pred = self.netG_A.module.depth(self.z_A)
+                self.depth_B_pred = self.netG_A.module.depth(self.z_B)
+            else:
+                self.depth_A_pred = self.netG_A.depth(self.z_A)
+                self.depth_B_pred = self.netG_A.depth(self.z_B)
+            device = self.depth_A_pred.device
+            self.loss_G_A_d = self.depthCriterion(
+                self.depth_A_pred, self.depth_A.to(device)
+            )
+            self.loss_G_B_d = self.depthCriterion(
+                self.depth_B_pred, self.depth_B.to(device)
+            )
             self.loss_G += lambda_D * (self.loss_G_B_d + self.loss_G_A_d)
 
         if self.should_compute("rotation"):
-            print("rotation loss")
-            self.angle_A_pred = self.netG_A.rotation(self.z_A)
-            self.angle_B_pred = self.netG_B.rotation(self.z_B)
-
+            # print("rotation loss")
+            if isinstance(self.netG_A, nn.DataParallel):
+                self.angle_A_pred = self.netG_A.module.rotation(self.z_A)
+                self.angle_B_pred = self.netG_B.module.rotation(self.z_B)
+            else:
+                self.angle_A_pred = self.netG_A.rotation(self.z_A)
+                self.angle_B_pred = self.netG_B.rotation(self.z_B)
+            device = self.angle_A_pred.device
             self.loss_G_A_r = self.rotationCriterion(
-                self.angle_A_pred, angles_to_tensors(self.angle_A, one_hot=False)
+                self.angle_A_pred,
+                angles_to_tensors(self.angle_A, one_hot=False).to(device),
             )
             self.loss_G_B_r = self.rotationCriterion(
-                self.angle_B_pred, angles_to_tensors(self.angle_B, one_hot=False)
+                self.angle_B_pred,
+                angles_to_tensors(self.angle_B, one_hot=False).to(device),
             )
             self.loss_G += lambda_R * (self.loss_G_B_r + self.loss_G_A_r)
 
         if self.should_compute("identity"):
-            print("identity loss")
+            # print("identity loss")
             # Identity loss
             assert lambda_idt > 0
             # G_A should be identity if real_B is fed: ||G_A(B) - B||

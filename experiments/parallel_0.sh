@@ -22,22 +22,24 @@ source $SLURM_TMPDIR/ct-env/bin/activate
 
 # 2. Copy your dataset on the compute node
 # IMPORTANT: Your dataset must be compressed in one single file (zip, hdf5, ...)!!!
-cp /scratch/vsch/continual/s2w.zip $SLURM_TMPDIR
+cp /scratch/vsch/continual/s2w_d.zip $SLURM_TMPDIR
 
 # 3. Eventually unzip your dataset
-unzip $SLURM_TMPDIR/s2w.zip -d $SLURM_TMPDIR > /dev/null
+unzip $SLURM_TMPDIR/s2w_d.zip -d $SLURM_TMPDIR > /dev/null
 
 # 4. Launch your job, tell it to save the model in $SLURM_TMPDIR
 #    and look for the dataset into $SLURM_TMPDIR
 python train.py \
-    --git_hash="2e0479ced5740a3151d4ddb6393f16a0083287f5"
+    --git_hash="f51444897144c1d51c17cf8b3f8a73a4a3f5c44f" \
     --dataroot $SLURM_TMPDIR/s2w \
-    --name base_cyclegan_WS \
-    --model cycle_gan \
+    --name "parallel_continual_0" \
+    --model continual \
     --checkpoints_dir "/scratch/vsch/continual/checkpoints" \
     --display_freq 1000 \
-    --batch_size 3 \
-    --task_schedule=parallel
+    --batch_size 5 \
+    --netG "continual" \
+    --task_schedule "parallel"
+
 
 # 5. Copy whatever you want to save on $SCRATCH
 # cp $SLURM_TMPDIR/checkpoints $SCRATCH
