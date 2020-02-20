@@ -101,3 +101,23 @@ def mkdir(path):
     """
     if not os.path.exists(path):
         os.makedirs(path)
+
+
+def decode_md(img):
+    if isinstance(img, torch.Tensor):
+        img = img.detach().cpu().numpy()
+
+    if len(img.shape) == 2:
+        img = np.expand_dims(img, 0)
+
+    if len(img.shape) == 3:
+        img = [img]
+
+    ims = []
+    for im in img:
+        ims.append(1 / np.exp(2 * (im + 2)))
+
+    if len(ims[0].shape) == 3:
+        ims = [np.expand_dims(im, 0) for im in ims]
+
+    return np.concatenate(ims, axis=0)

@@ -7,6 +7,7 @@ import torch.utils.data as data
 from PIL import Image
 import torchvision.transforms as transforms
 from abc import ABC, abstractmethod
+from time import time
 
 
 class BaseDataset(data.Dataset, ABC):
@@ -72,7 +73,13 @@ def get_params(opt, size):
 
 
 def get_transform(
-    opt, params=None, grayscale=False, method=Image.BICUBIC, convert=True
+    opt,
+    params=None,
+    grayscale=False,
+    method=Image.BICUBIC,
+    convert=True,
+    depth=False,
+    rotation=False,
 ):
     transform_list = []
     if grayscale:
@@ -100,7 +107,7 @@ def get_transform(
             transforms.Lambda(lambda img: __make_power_2(img, base=4, method=method))
         )
 
-    if not opt.no_flip:
+    if not opt.no_flip and not rotation:
         if params is None:
             transform_list.append(transforms.RandomHorizontalFlip())
         elif params["flip"]:
@@ -108,12 +115,71 @@ def get_transform(
                 transforms.Lambda(lambda img: __flip(img, params["flip"]))
             )
 
-    if convert:
-        transform_list += [transforms.ToTensor()]
-        if grayscale:
-            transform_list += [transforms.Normalize((0.5,), (0.5,))]
+    if rotation:
+        transform_list.append(transforms.Lambda(lambda img: __rotate(img)))
+
+    if depth:
+        if rotation:
+            transform_list.append(
+                transforms.Lambda(
+                    lambda img_angle: (__depth(img_angle[0]), img_angle[1])
+                )
+            )
         else:
-            transform_list += [transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))]
+            transform_list.append(transforms.Lambda(lambda img: __depth(img)))
+    if convert:
+        if rotation:
+            transform_list += [
+                transforms.Lambda(
+                    lambda img_angle: (
+                        transforms.ToTensor()(img_angle[0]),
+                        img_angle[1],
+                    )
+                )
+            ]
+        else:
+            transform_list += [transforms.ToTensor()]
+
+        if grayscale:
+            if rotation:
+                transform_list += [
+                    transforms.Lambda(
+                        lambda img_angle: (
+                            transforms.Normalize((0.5,), (0.5,))(img_angle[0]),
+                            img_angle[1],
+                        )
+                    )
+                ]
+            else:
+                transform_list += [transforms.Normalize((0.5,), (0.5,))]
+        elif depth:
+            if rotation:
+                transform_list += [
+                    transforms.Lambda(
+                        lambda img_angle: (
+                            transforms.Normalize((2,), (2,))(img_angle[0]),
+                            img_angle[1],
+                        )
+                    )
+                ]
+            else:
+                transform_list += [transforms.Normalize((2,), (2,))]
+        else:
+            if rotation:
+                transform_list += [
+                    transforms.Lambda(
+                        lambda img_angle: (
+                            transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))(
+                                img_angle[0]
+                            ),
+                            img_angle[1],
+                        )
+                    )
+                ]
+            else:
+                transform_list += [
+                    transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+                ]
     return transforms.Compose(transform_list)
 
 
@@ -146,6 +212,14 @@ def __crop(img, pos, size):
     return img
 
 
+def __depth(img):
+    img = np.array(img)
+    if img.max() > 1.0:
+        img = img / 255.0
+    img = 1 / (img + 1e-6)
+    return np.log(img)
+
+
 def __flip(img, flip):
     if flip:
         return img.transpose(Image.FLIP_LEFT_RIGHT)
@@ -162,3 +236,11 @@ def __print_size_warning(ow, oh, w, h):
             "whose sizes are not multiples of 4" % (ow, oh, w, h)
         )
         __print_size_warning.has_printed = True
+
+
+def __rotate(img):
+    # otherwise deterministic for some reason
+    np.random.seed(int(str(time()).split(".")[-1]))
+    angle = np.random.choice([0, 90, 180, 270])
+    img = img.rotate(angle)
+    return img, angle

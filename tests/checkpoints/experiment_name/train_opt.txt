@@ -4,7 +4,7 @@
           checkpoints_dir: ./checkpoints                 
            continue_train: False                         
                 crop_size: 256                           
-                 dataroot: .                             	[default: None]
+                 dataroot: ../s2w_d                      	[default: None]
              dataset_mode: unaligned                     
                 direction: AtoB                          
               display_env: main                          
@@ -24,6 +24,8 @@
                   isTrain: True                          	[default: None]
                  lambda_A: 10.0                          
                  lambda_B: 10.0                          
+                 lambda_D: 1                             
+                 lambda_R: 1                             
           lambda_identity: 0.5                           
                 load_iter: 0                             	[default: 0]
                 load_size: 286                           
