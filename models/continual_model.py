@@ -129,15 +129,15 @@ class ContinualModel(BaseModel):
         ]
         # specify the images you want to save/display. The training/test scripts
         # will call <BaseModel.get_current_visuals>
-        visual_names_A = ["real_A", "fake_B", "rec_A"]
-        visual_names_B = ["real_B", "fake_A", "rec_B"]
-        if self.isTrain and self.opt.lambda_identity > 0.0:
-            # if identity loss is used, we also visualize idt_B=G_A(B) ad idt_A=G_A(B)
-            visual_names_A.append("idt_B")
-            visual_names_B.append("idt_A")
+        # visual_names_A = ["real_A", "fake_B", "rec_A"]
+        # visual_names_B = ["real_B", "fake_A", "rec_B"]
+        # if self.isTrain and self.opt.lambda_identity > 0.0:
+        #     # if identity loss is used, we also visualize idt_B=G_A(B) ad idt_A=G_A(B)
+        #     visual_names_A.append("idt_B")
+        #     visual_names_B.append("idt_A")
 
         # combine visualizations for A and B
-        self.visual_names = visual_names_A + visual_names_B
+        self.visual_names = set(["real_A", "real_B"])
         # specify the models you want to save to the disk. The training/test scripts
         # will call <BaseModel.save_networks> and <BaseModel.load_networks>.
         if self.isTrain:
@@ -305,6 +305,36 @@ class ContinualModel(BaseModel):
             return self.__should_compute_translation
         raise ValueError(f"Unknown arg {arg}")
 
+    def update_visuals(self):
+        if self.__should_compute_translation:
+            self.visual_names.add("fake_A")
+            self.visual_names.add("fake_B")
+            self.visual_names.add("rec_A")
+            self.visual_names.add("rec_B")
+        else:
+            self.visual_names.remove("fake_A")
+            self.visual_names.remove("fake_B")
+            self.visual_names.remove("rec_A")
+            self.visual_names.remove("rec_B")
+
+        if self.__should_compute_identity:
+            self.visual_names.add("idt_B")
+            self.visual_names.add("idt_A")
+        else:
+            self.visual_names.remove("idt_B")
+            self.visual_names.remove("idt_A")
+
+        if self.__should_compute_depth:
+            self.visual_names.add("depth_B")
+            self.visual_names.add("depth_B_pred")
+            self.visual_names.add("depth_A")
+            self.visual_names.add("depth_A_pred")
+        else:
+            self.visual_names.remove("depth_B")
+            self.visual_names.remove("depth_B_pred")
+            self.visual_names.remove("depth_A")
+            self.visual_names.remove("depth_A_pred")
+
     def backward_G(self):
         """Calculate the loss for generators G_A and G_B"""
         lambda_idt = self.opt.lambda_identity
@@ -434,7 +464,7 @@ class ContinualModel(BaseModel):
     def parallel_schedule(self):
         return
 
-    def init_schedule(self):
+    def init_schedule(self):  # TODO update visual_names
         if self.opt.task_schedule == "parallel":
             self.__should_compute_rotation = True
             self.__should_compute_depth = True
@@ -486,3 +516,4 @@ class ContinualModel(BaseModel):
         self.backward_D_B()  # calculate gradients for D_B
         self.optimizer_D.step()  # update D_A and D_B's weights
         self.update_task_schedule()
+        self.update_visuals()

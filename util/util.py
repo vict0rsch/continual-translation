@@ -115,7 +115,7 @@ def decode_md(img):
 
     ims = []
     for im in img:
-        ims.append(1 / np.exp(2 * (im + 2)))
+        ims.append(1 / np.exp(2 * im + 2))
 
     if len(ims[0].shape) == 3:
         ims = [np.expand_dims(im, 0) for im in ims]

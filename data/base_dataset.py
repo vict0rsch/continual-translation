@@ -8,6 +8,7 @@ from PIL import Image
 import torchvision.transforms as transforms
 from abc import ABC, abstractmethod
 from time import time
+import torchvision.transforms.functional as TF
 
 
 class BaseDataset(data.Dataset, ABC):
@@ -70,6 +71,154 @@ def get_params(opt, size):
     flip = random.random() > 0.5
 
     return {"crop_pos": (x, y), "flip": flip}
+
+
+class _Resize:
+    def __init__(self, osize, method):
+        super().__init__()
+        self.transform = transforms.Resize(osize, method)
+
+    def __call__(self, dic):
+        dic.update({k: self.transform(v) for k, v in dic.items() if "angle" not in k})
+        return dic
+
+
+class _ScaleWidth:
+    def __init__(self, load_size, method):
+        super().__init__()
+        self.transform = __scale_width
+        self.load_size = load_size
+        self.method = method
+
+    def __call__(self, dic):
+        dic.update(
+            {
+                k: self.transform(v, self.load_size, self.method)
+                for k, v in dic.items()
+                if "angle" not in k
+            }
+        )
+        return dic
+
+
+class RandomCrop:
+    def __init__(self, size):
+
+        self.h = self.w = size
+        self.h = int(self.h)
+        self.w = int(self.w)
+
+    def __call__(self, dic):
+        h, w = dic[[k for k in dic.keys() if "angle" not in k][0]].shape[-2:]
+        top = np.random.randint(0, h - self.h)
+        left = np.random.randint(0, w - self.w)
+        dic.update(
+            {
+                k: TF.crop(v, top, left, self.h, self.w)
+                for k, v in dic.items()
+                if "angle" not in k
+            }
+        )
+        return dic
+
+
+class _Crop:
+    def __init__(self, crop_pos, crop_size):
+        super().__init__()
+        self.transform = __crop
+        self.corp_pos = crop_pos
+        self.crop_size = crop_size
+
+    def __call__(self, dic):
+        dic.update(
+            {
+                k: self.transform(v, self.corp_pos, self.crop_size)
+                for k, v in dic.items()
+                if "angle" not in k
+            }
+        )
+        return dic
+
+
+class _MakePower2:
+    def __init__(self, base, method):
+        super().__init__()
+        self.transform = __make_power_2
+        self.base = base
+        self.method = method
+
+    def __call__(self, dic):
+        dic.update(
+            {
+                k: self.transform(v, self.base, self.method)
+                for k, v in dic.items()
+                if "angle" not in k
+            }
+        )
+        return dic
+
+
+class _RandomHorizontalFlip:
+    def __init__(self, p=0.5):
+        self.flip = TF.hflip
+        self.p = p
+
+    def __call__(self, dic):
+        if np.random.rand() > self.p:
+            return dic
+        dic.update({k: self.flip(v) for k, v in dic.items() if "angle" not in k})
+        return dic
+
+
+class _Flip:
+    def __init__(self):
+        super().__init__()
+        self.transform = _RandomHorizontalFlip(0)
+
+    def __call__(self, dic):
+        dic.update({k: self.transform(v) for k, v in dic.items() if "angle" not in k})
+        return dic
+
+
+class _Depth:
+    def __init__(self):
+        super().__init__()
+        self.transform = __depth
+
+    def __call__(self, dic):
+        dic.update({k: self.transform(v) for k, v in dic.items() if "angle" not in k})
+        return dic
+
+
+class _Rotate:
+    def __init__(self):
+        super().__init__()
+
+    def __call__(self, dic):
+        angle = np.random.choice([0, 90, 180, 270])
+        dic.update({k: v.rotate(angle) for k, v in dic.items() if "angle" not in k})
+        dic["angle"] = angle
+        return dic
+
+
+class _Normalize:#TODO
+    def __init__(self):
+        super().__init__()
+
+    def __call__(self, dic):
+        pass
+
+
+def get_dic_transform(
+    opt,
+    params=None,
+    grayscale=False,
+    method=Image.BICUBIC,
+    convert=True,
+    depth=False,
+    rotation=False,
+):
+    pass
 
 
 def get_transform(

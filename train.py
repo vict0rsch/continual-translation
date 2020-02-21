@@ -15,11 +15,12 @@ See training and test tips at: https://github.com/junyanz/pytorch-CycleGAN-and-p
 See frequently asked questions at: https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix/blob/master/docs/qa.md
 """
 import comet_ml
+import numpy as np
 import time
 from options.train_options import TrainOptions
 from data import create_dataset
 from models import create_model
-from util.util import tensor2im
+from util.util import tensor2im, decode_md
 
 if __name__ == "__main__":
     opt = TrainOptions().parse()  # get training options
@@ -58,7 +59,10 @@ if __name__ == "__main__":
                 visuals = model.get_current_visuals()
                 for k, v in visuals.items():
                     for _j, imt in enumerate(v):
-                        imn = tensor2im(imt)
+                        if "depth" in k:
+                            imn = np.squeeze(decode_md(imt))
+                        else:
+                            imn = tensor2im(imt)
                         exp.log_image(imn, f"{k}_{total_iters}_{_j}")
                         if _j > 0:
                             continue
