@@ -53,8 +53,12 @@ class UnalignedDataset(BaseDataset):
             self.transform_A = get_transform(self.opt, grayscale=(input_nc == 1))
             self.transform_B = get_transform(self.opt, grayscale=(output_nc == 1))
         else:
-            self.transform_A = get_dic_transform(self.opt, grayscale=False)
-            self.transform_B = get_dic_transform(self.opt, grayscale=False)
+            self.transform_A = get_dic_transform(
+                self.opt, grayscale=False, depth=True, rotation=True
+            )
+            self.transform_B = get_dic_transform(
+                self.opt, grayscale=False, depth=True, rotation=True
+            )
 
     def __getitem__(self, index):
         """Return a data point and its metadata information.
@@ -114,4 +118,5 @@ class UnalignedDataset(BaseDataset):
         As we have two datasets with potentially different number of images,
         we take a maximum of
         """
+
         return max(self.A_size, self.B_size)

@@ -252,17 +252,37 @@ class ContinualModel(BaseModel):
         if isinstance(self.netG_A, nn.DataParallel):
             self.z_A = self.netG_A.module.encoder(self.real_A)
             self.z_B = self.netG_B.module.encoder(self.real_B)
-            self.fake_B = self.netG_A.module.decoder(self.z_A)  # G_A(A)
-            self.rec_A = self.netG_B(self.fake_B)  # G_B(G_A(A))
-            self.fake_A = self.netG_B.module.decoder(self.z_B)  # G_B(B)
-            self.rec_B = self.netG_A(self.fake_A)  # G_A(G_B(B))
+            if self.should_compute("rotation"):
+                self.angle_A_pred = self.netG_A.module.rotation(self.z_A)
+                self.angle_B_pred = self.netG_B.module.rotation(self.z_B)
+            if self.should_compute("depth"):
+                self.depth_A_pred = self.netG_A.module.depth(self.z_A)
+                self.depth_B_pred = self.netG_A.module.depth(self.z_B)
+            if self.should_compute("identity"):
+                self.idt_A = self.netG_A.module.decoder(self.z_B)
+                self.idt_B = self.netG_B.module.decoder(self.z_A)
+            if self.should_compute("translation"):
+                self.fake_B = self.netG_A.module.decoder(self.z_A)  # G_A(A)
+                self.rec_A = self.netG_B(self.fake_B)  # G_B(G_A(A))
+                self.fake_A = self.netG_B.module.decoder(self.z_B)  # G_B(B)
+                self.rec_B = self.netG_A(self.fake_A)  # G_A(G_B(B))
         else:
             self.z_A = self.netG_A.encoder(self.real_A)
             self.z_B = self.netG_B.encoder(self.real_B)
-            self.fake_B = self.netG_A.decoder(self.z_A)  # G_A(A)
-            self.rec_A = self.netG_B(self.fake_B)  # G_B(G_A(A))
-            self.fake_A = self.netG_B.decoder(self.z_B)  # G_B(B)
-            self.rec_B = self.netG_A(self.fake_A)  # G_A(G_B(B))
+            if self.should_compute("rotation"):
+                self.angle_A_pred = self.netG_A.rotation(self.z_A)
+                self.angle_B_pred = self.netG_B.rotation(self.z_B)
+            if self.should_compute("depth"):
+                self.depth_A_pred = self.netG_A.depth(self.z_A)
+                self.depth_B_pred = self.netG_A.depth(self.z_B)
+            if self.should_compute("identity"):
+                self.idt_A = self.netG_A.decoder(self.z_B)
+                self.idt_B = self.netG_B.decoder(self.z_A)
+            if self.should_compute("translation"):
+                self.fake_B = self.netG_A.decoder(self.z_A)  # G_A(A)
+                self.rec_A = self.netG_B(self.fake_B)  # G_B(G_A(A))
+                self.fake_A = self.netG_B.decoder(self.z_B)  # G_B(B)
+                self.rec_B = self.netG_A(self.fake_A)  # G_A(G_B(B))
 
     def backward_D_basic(self, netD, real, fake):
         """Calculate GAN loss for the discriminator
@@ -346,12 +366,6 @@ class ContinualModel(BaseModel):
         self.loss_G = 0
         if self.should_compute("depth"):
             # print("depth loss")
-            if isinstance(self.netG_A, nn.DataParallel):
-                self.depth_A_pred = self.netG_A.module.depth(self.z_A)
-                self.depth_B_pred = self.netG_A.module.depth(self.z_B)
-            else:
-                self.depth_A_pred = self.netG_A.depth(self.z_A)
-                self.depth_B_pred = self.netG_A.depth(self.z_B)
             device = self.depth_A_pred.device
             self.loss_G_A_d = self.depthCriterion(
                 self.depth_A_pred, self.depth_A.to(device)
@@ -363,12 +377,6 @@ class ContinualModel(BaseModel):
 
         if self.should_compute("rotation"):
             # print("rotation loss")
-            if isinstance(self.netG_A, nn.DataParallel):
-                self.angle_A_pred = self.netG_A.module.rotation(self.z_A)
-                self.angle_B_pred = self.netG_B.module.rotation(self.z_B)
-            else:
-                self.angle_A_pred = self.netG_A.rotation(self.z_A)
-                self.angle_B_pred = self.netG_B.rotation(self.z_B)
             device = self.angle_A_pred.device
             self.loss_G_A_r = self.rotationCriterion(
                 self.angle_A_pred,
@@ -385,12 +393,10 @@ class ContinualModel(BaseModel):
             # Identity loss
             assert lambda_idt > 0
             # G_A should be identity if real_B is fed: ||G_A(B) - B||
-            self.idt_A = self.netG_A(self.real_B)
             self.loss_idt_A = (
                 self.criterionIdt(self.idt_A, self.real_B) * lambda_B * lambda_idt
             )
             # G_B should be identity if real_A is fed: ||G_B(A) - A||
-            self.idt_B = self.netG_B(self.real_A)
             self.loss_idt_B = (
                 self.criterionIdt(self.idt_B, self.real_A) * lambda_A * lambda_idt
             )

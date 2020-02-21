@@ -4,6 +4,7 @@
           checkpoints_dir: ./checkpoints                 
            continue_train: False                         
                 crop_size: 256                           
+         d_loss_threshold: 0.5                           
                  dataroot: ../s2w_d                      	[default: None]
              dataset_mode: unaligned                     
                 direction: AtoB                          
@@ -18,6 +19,7 @@
               epoch_count: 1                             
                  gan_mode: lsgan                         
                   gpu_ids: -1                            	[default: 0]
+         i_loss_threshold: 0.5                           
                 init_gain: 0.02                          
                 init_type: normal                        
                  input_nc: 3                             
@@ -52,11 +54,13 @@
                 pool_size: 50                            
                preprocess: resize_and_crop               
                print_freq: 100                           
+         r_loss_threshold: 0.2                           
              save_by_iter: False                         
           save_epoch_freq: 5                             
          save_latest_freq: 5000                          
            serial_batches: False                         
                    suffix:                               
+            task_schedule: parallel                      
          update_html_freq: 1000                          
                   verbose: False                         
 ----------------- End -------------------

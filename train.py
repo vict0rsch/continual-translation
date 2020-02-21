@@ -21,11 +21,16 @@ from options.train_options import TrainOptions
 from data import create_dataset
 from models import create_model
 from util.util import tensor2im, decode_md
+from copy import copy
+
 
 if __name__ == "__main__":
     opt = TrainOptions().parse()  # get training options
     # create a dataset given opt.dataset_mode and other options
     dataset = create_dataset(opt)
+    test_opt = copy(opt)
+    test_opt.phase = "test"
+    test_dataset = create_dataset(test_opt)
     dataset_size = len(dataset)  # get the number of images in the dataset.
     print("The number of training images = %d" % dataset_size)
     exp = comet_ml.Experiment(project_name="continual-translation")

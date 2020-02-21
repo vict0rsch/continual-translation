@@ -1,5 +1,5 @@
 """This module implements an abstract base class (ABC) 'BaseDataset' for datasets.
-It also includes common transformation functions (e.g., get_transform, __scale_width), which can be later used in subclasses.
+It also includes common transformation functions (e.g., get_transform, custom_scale_width), which can be later used in subclasses.
 """
 import random
 import numpy as np
@@ -87,7 +87,7 @@ class _Resize:
 class _ScaleWidth:
     def __init__(self, load_size, method):
         super().__init__()
-        self.transform = __scale_width
+        self.transform = custom_scale_width
         self.load_size = load_size
         self.method = method
 
@@ -110,7 +110,7 @@ class _RandomCrop:
         self.w = int(self.w)
 
     def __call__(self, dic):
-        h, w = dic[[k for k in dic.keys() if "angle" not in k][0]].shape[-2:]
+        h, w = dic[[k for k in dic.keys() if "angle" not in k][0]].size[-2:]
         top = np.random.randint(0, h - self.h)
         left = np.random.randint(0, w - self.w)
         dic.update(
@@ -126,7 +126,7 @@ class _RandomCrop:
 class _Crop:
     def __init__(self, crop_pos, crop_size):
         super().__init__()
-        self.transform = __crop
+        self.transform = custom_crop
         self.corp_pos = crop_pos
         self.crop_size = crop_size
 
@@ -144,7 +144,7 @@ class _Crop:
 class _MakePower2:
     def __init__(self, base, method):
         super().__init__()
-        self.transform = __make_power_2
+        self.transform = custom_make_power_2
         self.base = base
         self.method = method
 
@@ -196,10 +196,10 @@ class _Flip:
 class _Depth:
     def __init__(self):
         super().__init__()
-        self.transform = __depth
+        self.transform = custom_depth
 
     def __call__(self, dic):
-        dic.update({k: self.transform(v) for k, v in dic.items() if k.stratswith("d")})
+        dic.update({k: self.transform(v) for k, v in dic.items() if k.startswith("d")})
         return dic
 
 
@@ -209,7 +209,7 @@ class _Rotate:
 
     def __call__(self, dic):
         angle = np.random.choice([0, 90, 180, 270])
-        dic.update({k: v.rotate(angle) for k, v in dic.items() if k.stratswith("r")})
+        dic.update({k: v.rotate(angle) for k, v in dic.items() if k.startswith("r")})
         dic["angle"] = angle
         return dic
 
@@ -252,7 +252,11 @@ class _ToTensor:
             if "angle" in k:
                 continue
             elif "d" in k:
-                dic.update({k: torch.tensor(v)})
+                t = torch.tensor(np.array(v))
+                if len(t.shape) == 2:
+                    t.unsqueeze_(0)
+                dic.update({k: t})
+                print(k, dic[k].shape, dic[k].dtype)
             else:
                 dic.update({k: self.to_tensor(v)})
         return dic
@@ -317,7 +321,9 @@ def get_transform(
         transform_list.append(transforms.Resize(osize, method))
     elif "scale_width" in opt.preprocess:
         transform_list.append(
-            transforms.Lambda(lambda img: __scale_width(img, opt.load_size, method))
+            transforms.Lambda(
+                lambda img: custom_scale_width(img, opt.load_size, method)
+            )
         )
 
     if "crop" in opt.preprocess:
@@ -326,13 +332,15 @@ def get_transform(
         else:
             transform_list.append(
                 transforms.Lambda(
-                    lambda img: __crop(img, params["crop_pos"], opt.crop_size)
+                    lambda img: custom_crop(img, params["crop_pos"], opt.crop_size)
                 )
             )
 
     if opt.preprocess == "none":
         transform_list.append(
-            transforms.Lambda(lambda img: __make_power_2(img, base=4, method=method))
+            transforms.Lambda(
+                lambda img: custom_make_power_2(img, base=4, method=method)
+            )
         )
 
     if not opt.no_flip and not rotation:
@@ -350,11 +358,11 @@ def get_transform(
         if rotation:
             transform_list.append(
                 transforms.Lambda(
-                    lambda img_angle: (__depth(img_angle[0]), img_angle[1])
+                    lambda img_angle: (custom_depth(img_angle[0]), img_angle[1])
                 )
             )
         else:
-            transform_list.append(transforms.Lambda(lambda img: __depth(img)))
+            transform_list.append(transforms.Lambda(lambda img: custom_depth(img)))
     if convert:
         if rotation:
             transform_list += [
@@ -411,7 +419,7 @@ def get_transform(
     return transforms.Compose(transform_list)
 
 
-def __make_power_2(img, base, method=Image.BICUBIC):
+def custom_make_power_2(img, base, method=Image.BICUBIC):
     ow, oh = img.size
     h = int(round(oh / base) * base)
     w = int(round(ow / base) * base)
@@ -422,7 +430,7 @@ def __make_power_2(img, base, method=Image.BICUBIC):
     return img.resize((w, h), method)
 
 
-def __scale_width(img, target_width, method=Image.BICUBIC):
+def custom_scale_width(img, target_width, method=Image.BICUBIC):
     ow, oh = img.size
     if ow == target_width:
         return img
@@ -431,7 +439,7 @@ def __scale_width(img, target_width, method=Image.BICUBIC):
     return img.resize((w, h), method)
 
 
-def __crop(img, pos, size):
+def custom_crop(img, pos, size):
     ow, oh = img.size
     x1, y1 = pos
     tw = th = size
@@ -440,7 +448,7 @@ def __crop(img, pos, size):
     return img
 
 
-def __depth(img):
+def custom_depth(img):
     img = np.array(img)
     if img.max() > 1.0:
         img = img / 255.0
