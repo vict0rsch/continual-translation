@@ -2,9 +2,10 @@ import torch
 import numpy as np
 from PIL import Image
 from models.continual_model import ContinualModel
+from data.unaligned_dataset import UnalignedDataset
 
 
-def eval(model: ContinualModel, dataset, exp, total_iters):
+def eval(model: ContinualModel, dataset: UnalignedDataset, exp, total_iters):
     model.set_requires_grad(model, requires_grad=False)
 
     angles = {
@@ -12,7 +13,10 @@ def eval(model: ContinualModel, dataset, exp, total_iters):
         "B": {"target": [], "predictions": []},
     }
     depth_losses = {"A": [], "B": []}
-    test_images = {"A": [], "B": []}
+    test_images = {
+        "A": {"cycle": [], "idt": [], "real": [], "fake": []},
+        "B": {"cycle": [], "idt": [], "real": [], "fake": []},
+    }
     for i, b in enumerate(dataset):
         model.set_input(b)
         model.forward()
@@ -35,6 +39,15 @@ def eval(model: ContinualModel, dataset, exp, total_iters):
                 ).mean()
             )
         if model.should_compute("translation"):
-            pass
+            if len(test_images["A"]["real"]) < 10:
+                test_images["A"]["real"].append(model.real_A.cpu().numpy())
+                test_images["A"]["cycle"].append(model.rec_A.detach().cpu().numpy())
+                test_images["A"]["idt"].append(model.idt_A.detach().cpu().numpy())
+                test_images["A"]["fake"].append(model.fake_A.detach().cpu().numpy())
+
+                test_images["B"]["real"].append(model.real_B.cpu().numpy())
+                test_images["B"]["cycle"].append(model.rec_B.detach().cpu().numpy())
+                test_images["B"]["idt"].append(model.idt_B.detach().cpu().numpy())
+                test_images["B"]["fake"].append(model.fake_B.detach().cpu().numpy())
 
     model.set_requires_grad(model, requires_grad=True)

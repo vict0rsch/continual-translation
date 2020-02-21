@@ -30,6 +30,7 @@ if __name__ == "__main__":
     dataset = create_dataset(opt)
     test_opt = copy(opt)
     test_opt.phase = "test"
+    test_opt.serial_batches = True
     test_dataset = create_dataset(test_opt)
     dataset_size = len(dataset)  # get the number of images in the dataset.
     print("The number of training images = %d" % dataset_size)

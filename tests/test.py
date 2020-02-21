@@ -18,6 +18,7 @@ if __name__ == "__main__":
     model = create_model(opt)
     dataset = create_dataset(opt)
     test_opt = copy(opt)
+    test_opt.serial_batches = True
     test_opt.phase = "test"
     test_dataset = create_dataset(test_opt)
 
