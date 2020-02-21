@@ -9,6 +9,7 @@ import torchvision.transforms as transforms
 from abc import ABC, abstractmethod
 from time import time
 import torchvision.transforms.functional as TF
+import torch
 
 
 class BaseDataset(data.Dataset, ABC):
@@ -101,7 +102,7 @@ class _ScaleWidth:
         return dic
 
 
-class RandomCrop:
+class _RandomCrop:
     def __init__(self, size):
 
         self.h = self.w = size
@@ -160,13 +161,19 @@ class _MakePower2:
 
 class _RandomHorizontalFlip:
     def __init__(self, p=0.5):
-        self.flip = TF.hflip
+        self.transform = TF.hflip
         self.p = p
 
     def __call__(self, dic):
         if np.random.rand() > self.p:
             return dic
-        dic.update({k: self.flip(v) for k, v in dic.items() if "angle" not in k})
+        dic.update(
+            {
+                k: self.transform(v)
+                for k, v in dic.items()
+                if k in {"A", "B", "dA", "dB"}
+            }
+        )
         return dic
 
 
@@ -176,7 +183,13 @@ class _Flip:
         self.transform = _RandomHorizontalFlip(0)
 
     def __call__(self, dic):
-        dic.update({k: self.transform(v) for k, v in dic.items() if "angle" not in k})
+        dic.update(
+            {
+                k: self.transform(v)
+                for k, v in dic.items()
+                if k in {"A", "B", "dA", "dB"}
+            }
+        )
         return dic
 
 
@@ -186,7 +199,7 @@ class _Depth:
         self.transform = __depth
 
     def __call__(self, dic):
-        dic.update({k: self.transform(v) for k, v in dic.items() if "angle" not in k})
+        dic.update({k: self.transform(v) for k, v in dic.items() if k.stratswith("d")})
         return dic
 
 
@@ -196,17 +209,53 @@ class _Rotate:
 
     def __call__(self, dic):
         angle = np.random.choice([0, 90, 180, 270])
-        dic.update({k: v.rotate(angle) for k, v in dic.items() if "angle" not in k})
+        dic.update({k: v.rotate(angle) for k, v in dic.items() if k.stratswith("r")})
         dic["angle"] = angle
         return dic
 
 
-class _Normalize:#TODO
-    def __init__(self):
+class _Normalize:
+    def __init__(self, grayscale):
         super().__init__()
+        params = {
+            "img": {
+                "mean": (0.5,) if grayscale else (0.5, 0.5, 0.5),
+                "std": (0.5,) if grayscale else (0.5, 0.5, 0.5),
+            },
+            "depth": {"mean": (2,), "std": (2,)},
+        }
+        self.transforms = {
+            "img": transforms.Normalize(params["img"]["mean"], params["img"]["std"]),
+            "depth": transforms.Normalize(
+                params["depth"]["mean"], params["depth"]["std"]
+            ),
+        }
 
     def __call__(self, dic):
-        pass
+        for k, v in dic.items():
+            if "angle" in k:
+                continue
+            if "d" in k:
+                dic.update({k: self.transforms["depth"](v)})
+            else:
+                dic.update({k: self.transforms["img"](v)})
+        return dic
+
+
+class _ToTensor:
+    def __init__(self):
+        super().__init__()
+        self.to_tensor = transforms.ToTensor()
+
+    def __call__(self, dic):
+        for k, v in dic.items():
+            if "angle" in k:
+                continue
+            elif "d" in k:
+                dic.update({k: torch.tensor(v)})
+            else:
+                dic.update({k: self.to_tensor(v)})
+        return dic
 
 
 def get_dic_transform(
@@ -218,7 +267,37 @@ def get_dic_transform(
     depth=False,
     rotation=False,
 ):
-    pass
+    transform_list = []
+    assert not grayscale
+    if "resize" in opt.preprocess:
+        osize = [opt.load_size, opt.load_size]
+        transform_list.append(_Resize(osize, method))
+    elif "scale_width" in opt.preprocess:
+        transform_list.append(_ScaleWidth(opt.load_size, method))
+
+    if "crop" in opt.preprocess:
+        if params is None:
+            transform_list.append(_RandomCrop(opt.crop_size))
+        else:
+            transform_list.append(_Crop(params["crop_pos"], opt.crop_size))
+    if opt.preprocess == "none":
+        transform_list.append(_MakePower2(base=4, method=method))
+
+    if not opt.no_flip:
+        transform_list.append(_RandomHorizontalFlip())
+
+    if rotation:
+        transform_list.append(_Rotate())
+
+    if depth:
+        transform_list.append(_Depth())
+
+    if convert:
+        transform_list.append(_ToTensor())
+
+    transform_list.append(_Normalize(False))
+
+    return transforms.Compose(transform_list)
 
 
 def get_transform(

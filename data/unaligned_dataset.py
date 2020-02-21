@@ -1,9 +1,10 @@
 import os.path
-from data.base_dataset import BaseDataset, get_transform
+from data.base_dataset import BaseDataset, get_transform, get_dic_transform
 from data.image_folder import make_dataset
 from PIL import Image
 import random
 from pathlib import Path
+from copy import copy
 
 
 class UnalignedDataset(BaseDataset):
@@ -48,22 +49,12 @@ class UnalignedDataset(BaseDataset):
         output_nc = (
             self.opt.input_nc if btoA else self.opt.output_nc
         )  # get the number of channels of output image
-        self.transform_A = get_transform(self.opt, grayscale=(input_nc == 1))
-        self.transform_B = get_transform(self.opt, grayscale=(output_nc == 1))
-        if self.load_depth:
-            self.transform_dA = get_transform(
-                self.opt, grayscale=(input_nc == 1), depth=True
-            )
-            self.transform_dB = get_transform(
-                self.opt, grayscale=(input_nc == 1), depth=True
-            )
-        if self.load_rotation:
-            self.transform_rA = get_transform(
-                self.opt, grayscale=(input_nc == 1), rotation=True
-            )
-            self.transform_rB = get_transform(
-                self.opt, grayscale=(input_nc == 1), rotation=True
-            )
+        if opt.netG != "continual":
+            self.transform_A = get_transform(self.opt, grayscale=(input_nc == 1))
+            self.transform_B = get_transform(self.opt, grayscale=(output_nc == 1))
+        else:
+            self.transform_A = get_dic_transform(self.opt, grayscale=False)
+            self.transform_B = get_dic_transform(self.opt, grayscale=False)
 
     def __getitem__(self, index):
         """Return a data point and its metadata information.
@@ -86,31 +77,35 @@ class UnalignedDataset(BaseDataset):
         B_path = self.B_paths[index_B]
         B_img = Image.open(B_path).convert("RGB")
 
-        B = self.transform_B(B_img)
-        A = self.transform_A(A_img)
-
         imgs = {
-            "A": A,
-            "B": B,
             "A_paths": A_path,
             "B_paths": B_path,
         }
 
-        if self.load_depth:
-            A_d_img = Image.open(
-                Path(A_path).parent / "depths" / (Path(A_path).stem + ".png")
-            ).convert("L")
-            B_d_img = Image.open(
-                Path(B_path).parent / "depths" / (Path(B_path).stem + ".png")
-            ).convert("L")
-            dA = self.transform_dA(A_d_img)
-            dB = self.transform_dB(B_d_img)
-            imgs.update({"dA": dA, "dB": dB})
-        if self.load_rotation:
-            rA, angleA = self.transform_rA(A_img)
-            rB, angleB = self.transform_rB(B_img)
-            imgs.update({"rA": rA, "rB": rB, "angleA": angleA, "angleB": angleB})
-        # apply image transformation
+        if self.opt.netG != "continual":
+            B = self.transform_B(B_img)
+            A = self.transform_A(A_img)
+            imgs.update({"A": A, "B": B})
+            return imgs
+
+        A_d_img = Image.open(
+            Path(A_path).parent / "depths" / (Path(A_path).stem + ".png")
+        ).convert("L")
+        B_d_img = Image.open(
+            Path(B_path).parent / "depths" / (Path(B_path).stem + ".png")
+        ).convert("L")
+
+        im_dict_A = {"A": A_img, "dA": A_d_img, "rA": A_img}
+        ims_A = self.transform_A(im_dict_A)
+        ims_A["angleA"] = copy(ims_A["angle"])
+        del ims_A["angle"]
+        imgs.update(ims_A)
+
+        im_dict_B = {"B": B_img, "dB": B_d_img, "rB": B_img}
+        ims_B = self.transform_B(im_dict_B)
+        ims_B["angleB"] = copy(ims_B["angle"])
+        del ims_B["angle"]
+        imgs.update(ims_B)
 
         return imgs
 
