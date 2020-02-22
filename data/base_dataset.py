@@ -4,6 +4,7 @@ It also includes common transformation functions (e.g., get_transform, custom_sc
 import random
 import numpy as np
 import torch.utils.data as data
+from util.util import angle_to_tensor
 from PIL import Image
 import torchvision.transforms as transforms
 from abc import ABC, abstractmethod
@@ -210,7 +211,7 @@ class _Rotate:
     def __call__(self, dic):
         angle = np.random.choice([0, 90, 180, 270])
         dic.update({k: v.rotate(angle) for k, v in dic.items() if k.startswith("r")})
-        dic["angle"] = angle
+        dic["angle"] = angle_to_tensor(angle)
         return dic
 
 
@@ -256,7 +257,6 @@ class _ToTensor:
                 if len(t.shape) == 2:
                     t.unsqueeze_(0)
                 dic.update({k: t})
-                print(k, dic[k].shape, dic[k].dtype)
             else:
                 dic.update({k: self.to_tensor(v)})
         return dic

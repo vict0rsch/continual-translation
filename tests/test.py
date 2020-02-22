@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 import torch
 
-sys.path.append(str(Path(__file__).parent.parent))
+sys.path.append(str(Path(__file__).resolve().parent.parent))
 from options.continual_options import ContinualOptions
 from models import create_model
 from data import create_dataset
@@ -13,6 +13,7 @@ from eval import eval
 if __name__ == "__main__":
 
     # local: run test.py --dataroot=../s2w_d --gpu_ids -1 --netG continual
+    # beluga: python test.py --dataroot=$SLURM_TMPDIR/s2w_d --netG continual --batch_size=5
 
     opt = ContinualOptions().parse()
     model = create_model(opt)
@@ -23,12 +24,18 @@ if __name__ == "__main__":
     test_dataset = create_dataset(test_opt)
 
     G = model.netG_A
-    e = G.encoder
-    d = G.depth
-    t = G.decoder
-    r = G.rotation
+    if isinstance(G, torch.nn.DataParallel):
+        e = G.module.encoder
+        d = G.module.depth
+        t = G.module.decoder
+        r = G.module.rotation
+    else:
+        e = G.encoder
+        d = G.depth
+        t = G.decoder
+        r = G.rotation
 
-    x = torch.rand(1, 3, 256, 256)
+    x = torch.rand(1, 3, 256, 256).to(next(G.parameters()).device)
     z = e(x)
 
     g_step = False
@@ -56,4 +63,4 @@ if __name__ == "__main__":
 
     if eval_model:
         exp = comet_ml.Experiment(project_name="continual-translation")
-        eval(model, exp, 1234)
+        eval(model, test_dataset, exp, 1234)

@@ -19,10 +19,10 @@ source $SLURM_TMPDIR/ct-env/bin/activate
 
 # 2. Copy your dataset on the compute node
 # IMPORTANT: Your dataset must be compressed in one single file (zip, hdf5, ...)!!!
-cp /scratch/vsch/continual/s2w.zip $SLURM_TMPDIR
+cp /scratch/vsch/continual/s2w_d.zip $SLURM_TMPDIR
 
 # 3. Eventually unzip your dataset
-unzip $SLURM_TMPDIR/s2w.zip -d $SLURM_TMPDIR > /dev/null
+unzip $SLURM_TMPDIR/s2w_d.zip -d $SLURM_TMPDIR > /dev/null
 
 # 4. Launch your job, tell it to save the model in $SLURM_TMPDIR
 #    and look for the dataset into $SLURM_TMPDIR
