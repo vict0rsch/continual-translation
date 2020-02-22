@@ -28,14 +28,14 @@ class ContinualModel(BaseModel):
         Returns:
             the modified parser.
         For CycleGAN, in addition to GAN losses, we introduce lambda_A, lambda_B,
-        and lambda_identity for the following losses.
+        and lambda_I for the following losses.
         A (source domain), B (target domain).
         Generators: G_A: A -> B; G_B: B -> A.
         Discriminators: D_A: G_A(A) vs. B; D_B: G_B(B) vs. A.
         Forward cycle loss:  lambda_A * ||G_B(G_A(A)) - A|| (Eqn. (2) in the paper)
         Backward cycle loss: lambda_B * ||G_A(G_B(B)) - B|| (Eqn. (2) in the paper)
         Identity loss (optional):
-        lambda_identity * (||G_A(B) - B|| * lambda_B + ||G_B(A) - A|| * lambda_A)
+        lambda_I * (||G_A(B) - B|| * lambda_B + ||G_B(A) - A|| * lambda_A)
         (Sec 5.2 "Photo generation from paintings" in the paper)
         Dropout is not used in the original CycleGAN paper.
         """
@@ -60,14 +60,14 @@ class ContinualModel(BaseModel):
                 "--lambda_D", type=float, default=1.0, help="weight for depth",
             )
             parser.add_argument(
-                "--lambda_identity",
+                "--lambda_I",
                 type=float,
                 default=0.5,
-                help="use identity mapping. Setting lambda_identity other than 0 has an\
+                help="use identity mapping. Setting lambda_I other than 0 has an\
                     effect of scaling the weight of the identity mapping loss. For \
                     example, if the weight of the identity loss should be 10 times \
                     smaller than the weight of the reconstruction loss, please set \
-                    lambda_identity = 0.1",
+                    lambda_I = 0.1",
             )
             parser.add_argument(
                 "--task_schedule", type=str, default="parallel", help="Tasks schedule",
@@ -131,7 +131,7 @@ class ContinualModel(BaseModel):
         # will call <BaseModel.get_current_visuals>
         # visual_names_A = ["real_A", "fake_B", "rec_A"]
         # visual_names_B = ["real_B", "fake_A", "rec_B"]
-        # if self.isTrain and self.opt.lambda_identity > 0.0:
+        # if self.isTrain and self.opt.lambda_I > 0.0:
         #     # if identity loss is used, we also visualize idt_B=G_A(B) ad idt_A=G_A(B)
         #     visual_names_A.append("idt_B")
         #     visual_names_B.append("idt_A")
@@ -194,7 +194,7 @@ class ContinualModel(BaseModel):
             )
 
         if self.isTrain:
-            if opt.lambda_identity > 0.0:
+            if opt.lambda_I > 0.0:
                 # only works when input and output images have the same number of
                 # channels
                 assert opt.input_nc == opt.output_nc
@@ -377,7 +377,7 @@ class ContinualModel(BaseModel):
 
     def backward_G(self):
         """Calculate the loss for generators G_A and G_B"""
-        lambda_idt = self.opt.lambda_identity
+        lambda_idt = self.opt.lambda_I
         lambda_A = self.opt.lambda_A
         lambda_B = self.opt.lambda_B
         lambda_D = self.opt.lambda_D
