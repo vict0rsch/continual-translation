@@ -35,7 +35,7 @@ python train.py \
     --name "parallel_continual_0" \
     --model continual \
     --checkpoints_dir "/scratch/vsch/continual/checkpoints" \
-    --display_freq 1000 \
+    --display_freq 5000 \
     --batch_size 5 \
     --netG "continual" \
     --task_schedule "parallel"

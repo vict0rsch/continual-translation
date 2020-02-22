@@ -22,7 +22,7 @@ from data import create_dataset
 from models import create_model
 from util.util import tensor2im, decode_md
 from copy import copy
-
+from eval import eval
 
 if __name__ == "__main__":
     opt = TrainOptions().parse()  # get training options
@@ -59,22 +59,7 @@ if __name__ == "__main__":
             model.set_input(data)  # unpack data from dataset and apply preprocessing
             model.optimize_parameters()  # calculate loss functions, get gradients, update network weights
             if total_iters % opt.display_freq == 0:
-
-                # TODO evaluate on images + rotation accuracy
-
-                # display images on visdom and save images to a HTML file
-                save_result = total_iters % opt.update_html_freq == 0
-                model.compute_visuals()
-                visuals = model.get_current_visuals()
-                for k, v in visuals.items():
-                    for _j, imt in enumerate(v):
-                        if "depth" in k:
-                            imn = np.squeeze(decode_md(imt))
-                        else:
-                            imn = tensor2im(imt)
-                        exp.log_image(imn, f"{k}_{total_iters}_{_j}")
-                        if _j > 0:
-                            continue
+                eval(model, test_dataset, exp, total_iters)
 
             if total_iters % opt.print_freq == 0:
                 # print training losses and save logging information to the disk

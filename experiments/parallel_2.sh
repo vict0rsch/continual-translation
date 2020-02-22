@@ -5,11 +5,10 @@
 #SBATCH --mem=32G                        # Ask for 32 GB of RAM
 #SBATCH --time=24:00:00                   # The job will run for 3 hours
 #SBATCH -o /scratch/vsch/continual/slurm-%j.out  # Write the log in $SCRATCH
-#SBATCH --qos unkillable
+#SBATCH --qos high
 
-#> first experiment to be able to scale minimal losses for other schedules:
 #> --task_schedule=parallel
-#> lambda_A|B to 5
+#> all lambdas to 1
 
 # 1. Create your environement locally
 module load python/3.7.4
@@ -36,13 +35,13 @@ python train.py \
     --name "parallel_continual_0" \
     --model continual \
     --checkpoints_dir "/scratch/vsch/continual/checkpoints" \
-    --display_freq 1000 \
+    --display_freq 5000 \
     --batch_size 5 \
     --netG "continual" \
     --task_schedule "parallel" \
-    --lambda_A 5.0 \
-    --lambda_B 5.0 \
-    --lambda_I 0.5 \
+    --lambda_A 1.0 \
+    --lambda_B 1.0 \
+    --lambda_I 1.0 \
     --lambda_R 1.0 \
     --lambda_D 1.0 \
 
