@@ -21,7 +21,7 @@ class BaseOptions:
         # basic parameters
         parser.add_argument(
             "--dataroot",
-            required=True,
+            # required=True,
             help="path to images (should have subfolders trainA, trainB, valA, valB, etc)",
         )
         parser.add_argument(

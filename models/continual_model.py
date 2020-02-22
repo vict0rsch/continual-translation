@@ -265,7 +265,7 @@ class ContinualModel(BaseModel):
 
             if self.should_compute("depth") and "depth" not in ignores:
                 self.depth_A_pred = self.netG_A.module.depth(self.z_A)
-                self.depth_B_pred = self.netG_A.module.depth(self.z_B)
+                self.depth_B_pred = self.netG_B.module.depth(self.z_B)
 
             if self.should_compute("identity") and "identity" not in ignores:
                 self.idt_A = self.netG_A.module.decoder(self.z_B)
@@ -292,7 +292,7 @@ class ContinualModel(BaseModel):
 
             if self.should_compute("depth") and "depth" not in ignores:
                 self.depth_A_pred = self.netG_A.depth(self.z_A)
-                self.depth_B_pred = self.netG_A.depth(self.z_B)
+                self.depth_B_pred = self.netG_B.depth(self.z_B)
 
             if self.should_compute("identity") and "identity" not in ignores:
                 self.idt_A = self.netG_A.decoder(self.z_B)

@@ -141,7 +141,9 @@ class TrainOptions(BaseOptions):
             help="chooses which model to use. [cycle_gan | pix2pix | test | colorization]",
         )
         parser.add_argument(
-            "--git_hash", type=str, required=True,
+            "--git_hash",
+            type=str,
+            # required=True,
         )
 
         self.isTrain = True

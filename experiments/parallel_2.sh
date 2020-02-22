@@ -30,7 +30,7 @@ unzip $SLURM_TMPDIR/s2w_d.zip -d $SLURM_TMPDIR > /dev/null
 # 4. Launch your job, tell it to save the model in $SLURM_TMPDIR
 #    and look for the dataset into $SLURM_TMPDIR
 python train.py \
-    --git_hash="5606aeb640372085eab9dda4b28f418518108030" \
+    --git_hash="409661853ff978bf2f02e534ca0fb86a5f8c2a33" \
     --dataroot $SLURM_TMPDIR/s2w_d \
     --name "parallel_continual_2" \
     --model continual \
