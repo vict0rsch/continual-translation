@@ -31,7 +31,7 @@ unzip $SLURM_TMPDIR/s2w_d.zip -d $SLURM_TMPDIR > /dev/null
 #    and look for the dataset into $SLURM_TMPDIR
 python train.py \
     --git_hash="b4de36334b7bd10d219df9d8df23c00bafbc13ce" \
-    --dataroot $SLURM_TMPDIR/s2w \
+    --dataroot $SLURM_TMPDIR/s2w_d \
     --name "parallel_continual_0" \
     --model continual \
     --checkpoints_dir "/scratch/vsch/continual/checkpoints" \
