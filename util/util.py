@@ -130,14 +130,29 @@ ref_one_hot = {
     270: [0, 0, 0, 1],
 }
 ref = {k: int(np.argmax(v)) for k, v in ref_one_hot.items()}
+labref_one_hot = {
+    0: [1, 0, 0, 0],
+    1: [0, 1, 0, 0],
+    2: [0, 0, 1, 0],
+    3: [0, 0, 0, 1],
+}
+labref = {i: i for i in range(4)}
 
 
 def angle_to_tensor(angle, one_hot=False):
     global ref
     global ref_one_hot
+    global labref
+    global labref_one_hot
     angle = int(angle)
-    assert angle in ref, "Unknown angle {}".format(angle)
-    r = ref_one_hot if one_hot else ref
+    if angle in ref:
+        r = ref_one_hot if one_hot else ref
+    else:
+        if angle in labref:
+            r = labref_one_hot if one_hot else labref
+        else:
+            raise ValueError("Unknown angle {}".format(angle))
+
     return torch.tensor(r[angle])
 
 
