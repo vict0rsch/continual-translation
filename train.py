@@ -53,11 +53,18 @@ if __name__ == "__main__":
             iter_start_time = time.time()  # timer for computation per iteration
             if total_iters % opt.print_freq == 0:
                 t_data = iter_start_time - iter_data_time
-
             total_iters += opt.batch_size
             epoch_iter += opt.batch_size
+            repr_freeze = getattr(model, "repr_is_frozen", False)
+
             model.set_input(data)  # unpack data from dataset and apply preprocessing
             model.optimize_parameters()  # calculate loss functions, get gradients, update network weights
+
+            repr_just_froze = repr_freeze == getattr(model, "repr_is_frozen", False)
+
+            if repr_just_froze:
+                exp.log_parameter("freezing_step", total_iters)
+
             if total_iters == opt.batch_size or total_iters % opt.display_freq == 0:
                 eval(model, test_dataset, exp, total_iters)
 

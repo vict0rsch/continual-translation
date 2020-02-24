@@ -246,9 +246,25 @@ class ContinualModel(BaseModel):
         self.angle_B = input["angleB" if AtoB else "angleA"].to(self.device)
         self.image_paths_B = input["B_paths" if AtoB else "A_paths"]
 
-    def forward(self, ignores=set()):
+    def forward(self, ignore=set(), force=set()):
         """Run forward pass; called by both functions
         <optimize_parameters> and <test>."""
+
+        assert not (ignore & force)
+        should = {
+            "rotation": False,
+            "depth": False,
+            "identity": False,
+            "translation": False,
+        }
+        for k in should:
+            if k in force:
+                should[k] = True
+            elif k in ignore:
+                should[k] = False
+            else:
+                should[k] = self.should_compute(k)
+
         # -------------------------------
         # -----  DataParallel Mode  -----
         # -------------------------------
@@ -259,19 +275,19 @@ class ContinualModel(BaseModel):
             self.z_A = self.netG_A.module.encoder(self.real_A)
             self.z_B = self.netG_B.module.encoder(self.real_B)
 
-            if self.should_compute("rotation") and "rotation" not in ignores:
+            if should["rotation"]:
                 self.angle_A_pred = self.netG_A.module.rotation(self.z_A)
                 self.angle_B_pred = self.netG_B.module.rotation(self.z_B)
 
-            if self.should_compute("depth") and "depth" not in ignores:
+            if should["depth"]:
                 self.depth_A_pred = self.netG_A.module.depth(self.z_A)
                 self.depth_B_pred = self.netG_B.module.depth(self.z_B)
 
-            if self.should_compute("identity") and "identity" not in ignores:
+            if should["identity"]:
                 self.idt_A = self.netG_A.module.decoder(self.z_B)
                 self.idt_B = self.netG_B.module.decoder(self.z_A)
 
-            if self.should_compute("translation") and "translation" not in ignores:
+            if should["translation"]:
                 self.fake_B = self.netG_A.module.decoder(self.z_A)  # G_A(A)
                 self.rec_A = self.netG_B(self.fake_B)  # G_B(G_A(A))
                 self.fake_A = self.netG_B.module.decoder(self.z_B)  # G_B(B)
@@ -286,19 +302,19 @@ class ContinualModel(BaseModel):
             self.z_A = self.netG_A.encoder(self.real_A)
             self.z_B = self.netG_B.encoder(self.real_B)
 
-            if self.should_compute("rotation") and "rotation" not in ignores:
+            if should["rotation"]:
                 self.angle_A_pred = self.netG_A.rotation(self.z_A)
                 self.angle_B_pred = self.netG_B.rotation(self.z_B)
 
-            if self.should_compute("depth") and "depth" not in ignores:
+            if should["depth"]:
                 self.depth_A_pred = self.netG_A.depth(self.z_A)
                 self.depth_B_pred = self.netG_B.depth(self.z_B)
 
-            if self.should_compute("identity") and "identity" not in ignores:
+            if should["identity"]:
                 self.idt_A = self.netG_A.decoder(self.z_B)
                 self.idt_B = self.netG_B.decoder(self.z_A)
 
-            if self.should_compute("translation") and "translation" not in ignores:
+            if should["translation"]:
                 self.fake_B = self.netG_A.decoder(self.z_A)  # G_A(A)
                 self.rec_A = self.netG_B(self.fake_B)  # G_B(G_A(A))
                 self.fake_A = self.netG_B.decoder(self.z_B)  # G_B(B)
@@ -490,7 +506,7 @@ class ContinualModel(BaseModel):
     def parallel_schedule(self):
         return
 
-    def init_schedule(self):  # TODO update visual_names
+    def init_schedule(self):
         if self.opt.task_schedule == "parallel":
             self.__should_compute_rotation = True
             self.__should_compute_depth = True
@@ -518,7 +534,7 @@ class ContinualModel(BaseModel):
             self.__should_compute_identity = True
             self.__should_compute_translation = False
             self.repr_is_frozen = False
-            self.update_task_schedule = self.additional_schedule
+            self.update_task_schedule = self.representational_schedule
 
         else:
             raise ValueError("Unknown schedule {}".format(self.opt.task_schedule))
