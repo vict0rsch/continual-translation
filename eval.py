@@ -12,6 +12,7 @@ def eval(
     total_iters: int = 0,
     nb_ims: int = 30,
 ):
+    continual = model.opt.model == "continual"
     print(f"----------- Evaluation {total_iters} ----------")
     with torch.no_grad():
         angles = {
@@ -35,32 +36,34 @@ def eval(
             model.set_input(b)
             model.forward(ignore, force)
 
-            # ----------------------
-            # -----  Rotation  -----
-            # ----------------------
-            angles["A"]["target"] += list(model.angle_A.cpu().numpy())
-            angles["A"]["prediction"] += [
-                np.argmax(t) for t in model.angle_A_pred.detach().cpu().numpy()
-            ]
-            angles["B"]["target"] += list(model.angle_B.cpu().numpy())
-            angles["B"]["prediction"] += [
-                np.argmax(t) for t in model.angle_B_pred.detach().cpu().numpy()
-            ]
-            # -------------------
-            # -----  Depth  -----
-            # -------------------
-            target_A = model.depth_A.cpu().numpy()
-            pred_A = model.depth_A_pred.detach().cpu().numpy()
-            target_B = model.depth_B.cpu().numpy()
-            pred_B = model.depth_B_pred.detach().cpu().numpy()
-            if len(depth_images["A"]["target"]) < nb_ims // model.opt.batch_size:
-                depth_images["A"]["target"].append(target_A)
-                depth_images["A"]["prediction"].append(pred_A)
-                depth_images["B"]["target"].append(target_B)
-                depth_images["B"]["prediction"].append(pred_B)
+            if continual:
 
-            depth_losses["A"].append(np.square(target_A - pred_A).mean())
-            depth_losses["B"].append(np.square(target_B - pred_B).mean())
+                # ----------------------
+                # -----  Rotation  -----
+                # ----------------------
+                angles["A"]["target"] += list(model.angle_A.cpu().numpy())
+                angles["A"]["prediction"] += [
+                    np.argmax(t) for t in model.angle_A_pred.detach().cpu().numpy()
+                ]
+                angles["B"]["target"] += list(model.angle_B.cpu().numpy())
+                angles["B"]["prediction"] += [
+                    np.argmax(t) for t in model.angle_B_pred.detach().cpu().numpy()
+                ]
+                # -------------------
+                # -----  Depth  -----
+                # -------------------
+                target_A = model.depth_A.cpu().numpy()
+                pred_A = model.depth_A_pred.detach().cpu().numpy()
+                target_B = model.depth_B.cpu().numpy()
+                pred_B = model.depth_B_pred.detach().cpu().numpy()
+                if len(depth_images["A"]["target"]) < nb_ims // model.opt.batch_size:
+                    depth_images["A"]["target"].append(target_A)
+                    depth_images["A"]["prediction"].append(pred_A)
+                    depth_images["B"]["target"].append(target_B)
+                    depth_images["B"]["prediction"].append(pred_B)
+
+                depth_losses["A"].append(np.square(target_A - pred_A).mean())
+                depth_losses["B"].append(np.square(target_B - pred_B).mean())
             # -------------------------
             # -----  Translation  -----
             # -------------------------
@@ -108,7 +111,7 @@ def eval(
             ),
             axis=-2,
         )
-        if len(depth_images["A"]["target"]) > i:
+        if len(depth_images["A"]["target"]) > i and continual:
             depth_images["A"]["target"][i] = [
                 to_min1_1(_im) for _im in depth_images["A"]["target"][i]
             ]
@@ -148,7 +151,7 @@ def eval(
             ),
             axis=-2,
         )
-        if len(depth_images["B"]["target"]) > i:
+        if len(depth_images["B"]["target"]) > i and continual:
             depth_images["B"]["target"][i] = [
                 to_min1_1(_im) for _im in depth_images["B"]["target"][i]
             ]
@@ -177,40 +180,46 @@ def eval(
             "test_B_{}_{}_{}_rfci".format(total_iters, i * 5, (i + 1) * 5 - 1),
             step=total_iters,
         )
+    if continual:
+        exp.log_metric("test_A_loss_d", np.mean(depth_losses["A"]), step=total_iters)
+        exp.log_metric("test_B_loss_d", np.mean(depth_losses["B"]), step=total_iters)
 
-    exp.log_metric("test_A_loss_d", np.mean(depth_losses["A"]), step=total_iters)
-    exp.log_metric("test_B_loss_d", np.mean(depth_losses["B"]), step=total_iters)
+        exp.log_metric(
+            "test_A_rot_acc",
+            np.mean(
+                [
+                    p == t
+                    for p, t in zip(angles["A"]["prediction"], angles["A"]["target"])
+                ]
+            ),
+            step=total_iters,
+        )
 
-    exp.log_metric(
-        "test_A_rot_acc",
-        np.mean(
-            [p == t for p, t in zip(angles["A"]["prediction"], angles["A"]["target"])]
-        ),
-        step=total_iters,
-    )
+        exp.log_metric(
+            "test_B_rot_acc",
+            np.mean(
+                [
+                    p == t
+                    for p, t in zip(angles["B"]["prediction"], angles["B"]["target"])
+                ]
+            ),
+            step=total_iters,
+        )
 
-    exp.log_metric(
-        "test_B_rot_acc",
-        np.mean(
-            [p == t for p, t in zip(angles["B"]["prediction"], angles["B"]["target"])]
-        ),
-        step=total_iters,
-    )
-
-    exp.log_confusion_matrix(
-        get_one_hot(np.array(angles["A"]["target"]), 4),
-        get_one_hot(np.array(angles["A"]["prediction"]), 4),
-        labels=["0", "90", "180", "270"],
-        file_name=f"confusion_A_{total_iters}.json",
-        title="Confusion Matrix A",
-    )
-    exp.log_confusion_matrix(
-        get_one_hot(np.array(angles["B"]["target"]), 4),
-        get_one_hot(np.array(angles["B"]["prediction"]), 4),
-        labels=["0", "90", "180", "270"],
-        file_name=f"confusion_B_{total_iters}.json",
-        title="Confusion Matrix B",
-    )
+        exp.log_confusion_matrix(
+            get_one_hot(np.array(angles["A"]["target"]), 4),
+            get_one_hot(np.array(angles["A"]["prediction"]), 4),
+            labels=["0", "90", "180", "270"],
+            file_name=f"confusion_A_{total_iters}.json",
+            title="Confusion Matrix A",
+        )
+        exp.log_confusion_matrix(
+            get_one_hot(np.array(angles["B"]["target"]), 4),
+            get_one_hot(np.array(angles["B"]["prediction"]), 4),
+            labels=["0", "90", "180", "270"],
+            file_name=f"confusion_B_{total_iters}.json",
+            title="Confusion Matrix B",
+        )
 
     print("----------- End Evaluation----------")
 

@@ -23,6 +23,7 @@ from models import create_model
 from util.util import tensor2im, decode_md
 from copy import copy
 from eval import eval
+from pathlib import Path
 
 if __name__ == "__main__":
     opt = TrainOptions().parse()  # get training options
@@ -36,6 +37,12 @@ if __name__ == "__main__":
     print("The number of training images = %d" % dataset_size)
     exp = comet_ml.Experiment(project_name="continual-translation")
     exp.log_parameters(dict(vars(opt)))
+
+    exp.add_tag(Path(opt.dataroot).name)
+    exp.add_tag(opt.model)
+    if "task_schedule" in opt:
+        exp.add_tag(opt.task_schedule)
+
     model = create_model(opt)  # create a model given opt.model and other options
     model.setup(opt)  # regular setup: load and print networks; create schedulers
     # create a visualizer that display/save images and plots

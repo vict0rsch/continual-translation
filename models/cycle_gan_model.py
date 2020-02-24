@@ -178,12 +178,16 @@ class CycleGANModel(BaseModel):
         self.real_B = input["B" if AtoB else "A"].to(self.device)
         self.image_paths = input["A_paths" if AtoB else "B_paths"]
 
-    def forward(self):
+    def forward(self, ignore=None, force=None):
         """Run forward pass; called by both functions <optimize_parameters> and <test>."""
+        lambda_idt = self.opt.lambda_identity
         self.fake_B = self.netG_A(self.real_A)  # G_A(A)
         self.rec_A = self.netG_B(self.fake_B)  # G_B(G_A(A))
         self.fake_A = self.netG_B(self.real_B)  # G_B(B)
         self.rec_B = self.netG_A(self.fake_A)  # G_A(G_B(B))
+        if lambda_idt > 0:
+            self.idt_A = self.netG_A(self.real_B)
+            self.idt_B = self.netG_B(self.real_A)
 
     def backward_D_basic(self, netD, real, fake):
         """Calculate GAN loss for the discriminator
@@ -223,12 +227,11 @@ class CycleGANModel(BaseModel):
         # Identity loss
         if lambda_idt > 0:
             # G_A should be identity if real_B is fed: ||G_A(B) - B||
-            self.idt_A = self.netG_A(self.real_B)
+
             self.loss_idt_A = (
                 self.criterionIdt(self.idt_A, self.real_B) * lambda_B * lambda_idt
             )
             # G_B should be identity if real_A is fed: ||G_B(A) - A||
-            self.idt_B = self.netG_B(self.real_A)
             self.loss_idt_B = (
                 self.criterionIdt(self.idt_B, self.real_A) * lambda_A * lambda_idt
             )

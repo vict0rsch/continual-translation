@@ -13,25 +13,26 @@ module load httpproxy
 
 cd /home/vsch/continual-translation
 # zip -r $SCRATCH/ct-env.zip ct-env > /dev/null #! uncomment to load new packages
-source /home/vsch/continual-translation/ct-env/bin/activate
+source /home/vsch/continual-translation/ctenv/bin/activate
+
+export continual_dataset="h2z_d"
 
 # 2. Copy your dataset on the compute node
 # IMPORTANT: Your dataset must be compressed in one single file (zip, hdf5, ...)!!!
-cp /scratch/vsch/continual/s2w_d.zip $SLURM_TMPDIR
+cp /scratch/vsch/continual/$continual_dataset.zip $SLURM_TMPDIR
 
 # 3. Eventually unzip your dataset
-unzip $SLURM_TMPDIR/s2w_d.zip -d $SLURM_TMPDIR > /dev/null
+unzip $SLURM_TMPDIR/$continual_dataset.zip -d $SLURM_TMPDIR > /dev/null
 
 # 4. Launch your job, tell it to save the model in $SLURM_TMPDIR
 #    and look for the dataset into $SLURM_TMPDIR
 python train.py \
-    --git_hash="595683d4a2a92f752dec638f45346a63348b6420"
-    --dataroot $SLURM_TMPDIR/s2w \
+    --git_hash="5f6e2ce38e43bb532d8384161e77b7c093599b4d"
+    --dataroot $SLURM_TMPDIR/$continual_dataset \
     --name base_cyclegan_WS \
     --model cycle_gan \
     --checkpoints_dir "/scratch/vsch/continual/checkpoints" \
     --display_freq 1000 \
-    --batch_size 3
-
+    --n_epochs 300
 # 5. Copy whatever you want to save on $SCRATCH
 # cp $SLURM_TMPDIR/checkpoints $SCRATCH

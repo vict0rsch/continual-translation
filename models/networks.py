@@ -464,7 +464,7 @@ class ResnetGenerator(nn.Module):
 
         self.model = nn.Sequential(*model)
 
-    def forward(self, input):
+    def forward(self, input, ignore=None, force=None):
         """Standard forward"""
         return self.model(input)
 
@@ -962,4 +962,3 @@ class FCView(nn.Module):
 
     def __repr__(self):
         return "view(nB, -1)"
-

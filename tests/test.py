@@ -23,25 +23,25 @@ if __name__ == "__main__":
     test_opt.phase = "test"
     test_dataset = create_dataset(test_opt)
 
-    G = model.netG_A
-    if isinstance(G, torch.nn.DataParallel):
-        e = G.module.encoder
-        d = G.module.depth
-        t = G.module.decoder
-        r = G.module.rotation
-    else:
-        e = G.encoder
-        d = G.depth
-        t = G.decoder
-        r = G.rotation
-
-    x = torch.rand(1, 3, 256, 256).to(next(G.parameters()).device)
-    z = e(x)
-
     g_step = False
     eval_model = True
 
     if g_step:
+
+        G = model.netG_A
+        if isinstance(G, torch.nn.DataParallel):
+            e = G.module.encoder
+            d = G.module.depth
+            t = G.module.decoder
+            r = G.module.rotation
+        else:
+            e = G.encoder
+            d = G.depth
+            t = G.decoder
+            r = G.rotation
+
+        x = torch.rand(1, 3, 256, 256).to(next(G.parameters()).device)
+        z = e(x)
         b = next(iter(dataset))
 
         print("Setting input")
@@ -63,4 +63,9 @@ if __name__ == "__main__":
 
     if eval_model:
         exp = comet_ml.Experiment(project_name="continual-translation")
+        exp.add_tag(Path(opt.dataroot).name)
+        exp.add_tag(opt.model)
+        if "task_schedule" in opt:
+            exp.add_tag(opt.task_schedule)
+        exp.add_tag("functional_test")
         eval(model, test_dataset, exp, 1234)
