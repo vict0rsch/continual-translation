@@ -27,7 +27,7 @@ unzip $SLURM_TMPDIR/$continual_dataset.zip -d $SLURM_TMPDIR > /dev/null
 # 4. Launch your job, tell it to save the model in $SLURM_TMPDIR
 #    and look for the dataset into $SLURM_TMPDIR
 python train.py \
-    --git_hash="5f6e2ce38e43bb532d8384161e77b7c093599b4d"
+    --git_hash="3fad19911f582ae16e8a98cae1c0883bde6ab228" \
     --dataroot $SLURM_TMPDIR/$continual_dataset \
     --name base_cyclegan_WS \
     --model cycle_gan \
