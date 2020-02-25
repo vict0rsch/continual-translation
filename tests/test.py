@@ -68,4 +68,4 @@ if __name__ == "__main__":
         if "task_schedule" in opt:
             exp.add_tag(opt.task_schedule)
         exp.add_tag("functional_test")
-        eval(model, test_dataset, exp, 1234)
+        metrics = eval(model, test_dataset, exp, 1234)

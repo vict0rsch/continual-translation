@@ -119,7 +119,7 @@ class BaseOptions:
             help="if true, takes images in order to make batches, otherwise takes them randomly",
         )
         parser.add_argument(
-            "--num_threads", default=4, type=int, help="# threads for loading data"
+            "--num_threads", default=6, type=int, help="# threads for loading data"
         )
         parser.add_argument(
             "--batch_size", type=int, default=1, help="input batch size"
@@ -243,6 +243,8 @@ class BaseOptions:
         if opt.suffix:
             suffix = ("_" + opt.suffix.format(**vars(opt))) if opt.suffix != "" else ""
             opt.name = opt.name + suffix
+
+        opt.dataroot = util.env_to_path(opt.dataroot)
 
         self.print_options(opt)
 

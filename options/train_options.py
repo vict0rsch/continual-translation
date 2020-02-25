@@ -145,6 +145,11 @@ class TrainOptions(BaseOptions):
             type=str,
             # required=True,
         )
+        parser.add_argument(
+            "--message",
+            type=str,
+            # required=True,
+        )
 
         self.isTrain = True
         return parser

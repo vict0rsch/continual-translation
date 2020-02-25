@@ -158,3 +158,21 @@ def angle_to_tensor(angle, one_hot=False):
 
 def angles_to_tensors(angles, one_hot=False):
     return torch.cat([angle_to_tensor(a, one_hot).unsqueeze(0) for a in angles], dim=0)
+
+
+def env_to_path(path_str):
+    """Transorms an environment variable mention in a json
+    into its actual value. E.g. $HOME/clouds -> /home/vsch/clouds
+
+    Args:
+        path_str (str): path_str potentially containing the env variable
+
+    """
+    path_elements = path_str.split("/")
+    new_path = []
+    for el in path_elements:
+        if "$" in el:
+            new_path.append(os.environ[el.replace("$", "")])
+        else:
+            new_path.append(el)
+    return "/".join(new_path)

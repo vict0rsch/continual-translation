@@ -31,10 +31,24 @@ def eval(
         ignore = set()
         force = {"rotation", "depth"}
         print()
+        losses = {
+            k: []
+            for k in dir(model)
+            if k.startswith("loss_") and isinstance(getattr(model, k), torch.Tensor)
+        }
         for i, b in enumerate(dataset):
             print(f"\rEval batch {i}", end="")
             model.set_input(b)
             model.forward(ignore, force)
+            model.backward_G(losses_only=True)
+
+            for k in dir(model):
+                if k.startswith("loss_") and isinstance(
+                    getattr(model, k), torch.Tensor
+                ):
+                    if k not in losses:
+                        losses[k] = []
+                    losses[k].append(getattr(model, k).detach().cpu().item())
 
             if continual:
 
@@ -83,93 +97,118 @@ def eval(
     # --------------------------------
     # -----  Create image tiles  -----
     # --------------------------------
+
+    # flatten lists
+    for domain, dic in test_images.items():
+        for im_type, im_list in dic.items():
+            tmp = []
+            for im in im_list:
+                tmp += list(im)
+            test_images[domain][im_type] = tmp
+
+    if len(depth_images["A"]["target"]) > 0 and continual:
+        for domain, dic_d in depth_images.items():
+            for im_type, im_list in dic_d.items():
+                tmp = []
+                for im in im_list:
+                    tmp += list(im)
+                depth_images[domain][im_type] = tmp
     ims_A = []
     ims_B = []
-    for i in range(len(test_images["A"]["real"])):
-        im_A_real = np.concatenate(test_images["A"]["real"][i], axis=-1)
-        im_A_cycle = (
-            np.concatenate(test_images["A"]["cycle"][i], axis=-1)
-            if len(test_images["A"]["cycle"]) > i
-            else None
-        )
-        im_A_idt = (
-            np.concatenate(test_images["A"]["idt"][i], axis=-1)
-            if len(test_images["A"]["idt"]) > i
-            else None
-        )
-        im_A_fake = (
-            np.concatenate(test_images["A"]["fake"][i], axis=-1)
-            if len(test_images["A"]["fake"]) > i
-            else None
-        )
-        im_A = np.concatenate(
-            list(
-                filter(
-                    lambda x: x is not None,
-                    [im_A_real, im_A_fake, im_A_cycle, im_A_idt],
-                )
-            ),
-            axis=-2,
-        )
-        if len(depth_images["A"]["target"]) > i and continual:
-            depth_images["A"]["target"][i] = [
-                to_min1_1(_im) for _im in depth_images["A"]["target"][i]
-            ]
-            depth_images["A"]["prediction"][i] = [
-                to_min1_1(_im) for _im in depth_images["A"]["prediction"][i]
-            ]
-            im_d_A_target = np.concatenate(depth_images["A"]["target"][i], axis=-1)
-            im_d_A_pred = np.concatenate(depth_images["A"]["prediction"][i], axis=-1)
-            ims_d_A = np.repeat(
-                np.concatenate([im_d_A_target, im_d_A_pred], axis=-2), 3, axis=0
+    try:
+        for i in range(0, len(test_images["A"]["real"]), 5):
+            k = i + 5
+            im_A_real = np.concatenate(test_images["A"]["real"][i:k], axis=-1)
+            im_A_cycle = (
+                np.concatenate(test_images["A"]["cycle"][i:k], axis=-1)
+                if len(test_images["A"]["cycle"]) > i
+                else None
             )
-            im_A = np.concatenate([im_A, ims_d_A], axis=-2)
-        ims_A.append(im_A)
+            im_A_idt = (
+                np.concatenate(test_images["A"]["idt"][i:k], axis=-1)
+                if len(test_images["A"]["idt"]) > i
+                else None
+            )
+            im_A_fake = (
+                np.concatenate(test_images["A"]["fake"][i:k], axis=-1)
+                if len(test_images["A"]["fake"]) > i
+                else None
+            )
+            im_A = np.concatenate(
+                list(
+                    filter(None.__ne__, [im_A_real, im_A_fake, im_A_cycle, im_A_idt],)
+                ),
+                axis=-2,
+            )
+            if len(depth_images["A"]["target"]) > i and continual:
+                depth_images["A"]["target"][i:k] = [
+                    to_min1_1(_im) for _im in depth_images["A"]["target"][i:k]
+                ]
+                depth_images["A"]["prediction"][i:k] = [
+                    to_min1_1(_im) for _im in depth_images["A"]["prediction"][i:k]
+                ]
+                im_d_A_target = np.concatenate(
+                    depth_images["A"]["target"][i:k], axis=-1
+                )
+                im_d_A_pred = np.concatenate(
+                    depth_images["A"]["prediction"][i:k], axis=-1
+                )
+                ims_d_A = np.repeat(
+                    np.concatenate([im_d_A_target, im_d_A_pred], axis=-2), 3, axis=0
+                )
+                im_A = np.concatenate([im_A, ims_d_A], axis=-2)
+            ims_A.append(im_A)
 
-        im_B_real = np.concatenate(test_images["B"]["real"][i], axis=-1)
-        im_B_cycle = (
-            np.concatenate(test_images["B"]["cycle"][i], axis=-1)
-            if len(test_images["B"]["cycle"]) > i
-            else None
-        )
-        im_B_idt = (
-            np.concatenate(test_images["B"]["idt"][i], axis=-1)
-            if len(test_images["B"]["idt"]) > i
-            else None
-        )
-        im_B_fake = (
-            np.concatenate(test_images["B"]["fake"][i], axis=-1)
-            if len(test_images["B"]["fake"]) > i
-            else None
-        )
-        im_B = np.concatenate(
-            list(
-                filter(
-                    lambda x: x is not None,
-                    [im_B_real, im_B_fake, im_B_cycle, im_B_idt],
-                )
-            ),
-            axis=-2,
-        )
-        if len(depth_images["B"]["target"]) > i and continual:
-            depth_images["B"]["target"][i] = [
-                to_min1_1(_im) for _im in depth_images["B"]["target"][i]
-            ]
-            depth_images["B"]["prediction"][i] = [
-                to_min1_1(_im) for _im in depth_images["B"]["prediction"][i]
-            ]
-            im_d_B_target = np.concatenate(depth_images["B"]["target"][i], axis=-1)
-            im_d_B_pred = np.concatenate(depth_images["B"]["prediction"][i], axis=-1)
-            ims_d_B = np.repeat(
-                np.concatenate([im_d_B_target, im_d_B_pred], axis=-2), 3, axis=0
+            im_B_real = np.concatenate(test_images["B"]["real"][i:k], axis=-1)
+            im_B_cycle = (
+                np.concatenate(test_images["B"]["cycle"][i:k], axis=-1)
+                if len(test_images["B"]["cycle"]) > i
+                else None
             )
-            im_B = np.concatenate([im_B, ims_d_B], axis=-2)
-        ims_B.append(im_B)
+            im_B_idt = (
+                np.concatenate(test_images["B"]["idt"][i:k], axis=-1)
+                if len(test_images["B"]["idt"]) > i
+                else None
+            )
+            im_B_fake = (
+                np.concatenate(test_images["B"]["fake"][i:k], axis=-1)
+                if len(test_images["B"]["fake"]) > i
+                else None
+            )
+            im_B = np.concatenate(
+                list(
+                    filter(None.__ne__, [im_B_real, im_B_fake, im_B_cycle, im_B_idt],)
+                ),
+                axis=-2,
+            )
+            if len(depth_images["B"]["target"]) > i and continual:
+                depth_images["B"]["target"][i:k] = [
+                    to_min1_1(_im) for _im in depth_images["B"]["target"][i:k]
+                ]
+                depth_images["B"]["prediction"][i:k] = [
+                    to_min1_1(_im) for _im in depth_images["B"]["prediction"][i:k]
+                ]
+                im_d_B_target = np.concatenate(
+                    depth_images["B"]["target"][i:k], axis=-1
+                )
+                im_d_B_pred = np.concatenate(
+                    depth_images["B"]["prediction"][i:k], axis=-1
+                )
+                ims_d_B = np.repeat(
+                    np.concatenate([im_d_B_target, im_d_B_pred], axis=-2), 3, axis=0
+                )
+                im_B = np.concatenate([im_B, ims_d_B], axis=-2)
+            ims_B.append(im_B)
+    except ValueError as e:
+        print(e)
+        import pdb
+
+        pdb.set_trace()
 
     # ------------------------
     # -----  Comet Logs  -----
     # ------------------------
-    for i in range(len(test_images["A"]["real"])):
+    for i in range(len(ims_A)):
         exp.log_image(
             (np.transpose(ims_A[i], (1, 2, 0)) + 1) / 2,
             "test_A_{}_{}_{}_rfci".format(total_iters, i * 5, (i + 1) * 5 - 1),
@@ -181,31 +220,22 @@ def eval(
             step=total_iters,
         )
     if continual:
-        exp.log_metric("test_A_loss_d", np.mean(depth_losses["A"]), step=total_iters)
-        exp.log_metric("test_B_loss_d", np.mean(depth_losses["B"]), step=total_iters)
-
-        exp.log_metric(
-            "test_A_rot_acc",
-            np.mean(
-                [
-                    p == t
-                    for p, t in zip(angles["A"]["prediction"], angles["A"]["target"])
-                ]
-            ),
-            step=total_iters,
+        test_A_loss_d = np.mean(depth_losses["A"])
+        test_B_loss_d = np.mean(depth_losses["B"])
+        test_A_rot_acc = np.mean(
+            [p == t for p, t in zip(angles["A"]["prediction"], angles["A"]["target"])]
         )
-
-        exp.log_metric(
-            "test_B_rot_acc",
-            np.mean(
-                [
-                    p == t
-                    for p, t in zip(angles["B"]["prediction"], angles["B"]["target"])
-                ]
-            ),
-            step=total_iters,
+        test_B_rot_acc = np.mean(
+            [p == t for p, t in zip(angles["B"]["prediction"], angles["B"]["target"])]
         )
-
+        exp.log_metric("test_A_loss_d", test_A_loss_d, step=total_iters)
+        exp.log_metric("test_B_loss_d", test_B_loss_d, step=total_iters)
+        exp.log_metric(
+            "test_A_rot_acc", test_A_rot_acc, step=total_iters,
+        )
+        exp.log_metric(
+            "test_B_rot_acc", test_B_rot_acc, step=total_iters,
+        )
         exp.log_confusion_matrix(
             get_one_hot(np.array(angles["A"]["target"]), 4),
             get_one_hot(np.array(angles["A"]["prediction"]), 4),
@@ -222,6 +252,14 @@ def eval(
         )
 
     print("----------- End Evaluation----------")
+    metrics = {
+        "test_A_loss_d": test_A_loss_d,
+        "test_B_loss_d": test_B_loss_d,
+        "test_A_rot_acc": test_A_rot_acc,
+        "test_B_rot_acc": test_B_rot_acc,
+    }
+    metrics.update({k: np.mean(v) for k, v in losses.items()})
+    return metrics
 
 
 def get_one_hot(targets, nb_classes):

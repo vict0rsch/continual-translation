@@ -391,7 +391,7 @@ class ContinualModel(BaseModel):
             self.visual_names.remove("depth_A")
             self.visual_names.remove("depth_A_pred")
 
-    def backward_G(self):
+    def backward_G(self, losses_only=False):
         """Calculate the loss for generators G_A and G_B"""
         lambda_idt = self.opt.lambda_I
         lambda_A = self.opt.lambda_A
@@ -452,46 +452,47 @@ class ContinualModel(BaseModel):
             self.loss_G += (
                 self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B
             )
-        self.loss_G.backward()
+        if not losses_only:
+            self.loss_G.backward()
 
-    def sequential_schedule(self):
+    def sequential_schedule(self, metrics):
         r = self.opt.r_loss_threshold
         if self.__should_compute_rotation:
             # never check again once we've changed task
-            if self.loss_G_A_r > r and self.loss_G_B_r > r:
+            if metrics["loss_G_A_r"] > r and metrics["loss_G_B_r"] > r:
                 self.__should_compute_rotation = False
                 self.__should_compute_depth = True
 
         d = self.opt.d_loss_threshold
         if self.__should_compute_depth:
             # never check again once we've changed task
-            if self.loss_G_A_d > d and self.loss_G_B_d > d:
+            if metrics["loss_G_A_d"] > d and metrics["loss_G_B_d"] > d:
                 self.__should_compute_depth = False
                 self.__should_compute_identity = True
                 self.__should_compute_translation = True
 
-    def additional_schedule(self):
+    def additional_schedule(self, metrics):
         r = self.opt.r_loss_threshold
-        if self.loss_G_A_r > r and self.loss_G_B_r > r:
+        if metrics["loss_G_A_r"] > r and metrics["loss_G_B_r"] > r:
             self.__should_compute_depth = True
 
         d = self.opt.d_loss_threshold
-        if self.loss_G_A_d > d and self.loss_G_B_d > d:
+        if metrics["loss_G_A_d"] > d and metrics["loss_G_B_d"] > d:
             self.__should_compute_identity = True
             self.__should_compute_translation = True
 
-    def representational_schedule(self):
+    def representational_schedule(self, metrics):
         r = self.opt.r_loss_threshold
         d = self.opt.d_loss_threshold
         i = self.opt.i_loss_threshold
 
         if (
-            self.loss_G_A_r > r
-            and self.loss_G_B_r > r
-            and self.loss_G_A_d > d
-            and self.loss_G_B_d > d
-            and self.loss_idt_A > i
-            and self.loss_idt_B > i
+            metrics["test_A_rot_acc"] > r
+            and metrics["test_B_rot_acc"] > r
+            and metrics["test_A_loss_d"] > d
+            and metrics["test_B_loss_d"] > d
+            and metrics["loss_idt_A"] > i
+            and metrics["loss_idt_B"] > i
         ):
             self.__should_compute_translation = True
             self.__should_compute_identity = True
@@ -503,7 +504,7 @@ class ContinualModel(BaseModel):
                 )
                 self.repr_is_frozen = True
 
-    def parallel_schedule(self):
+    def parallel_schedule(self, metrics):
         return
 
     def init_schedule(self):
@@ -557,5 +558,4 @@ class ContinualModel(BaseModel):
         self.backward_D_A()  # calculate gradients for D_A
         self.backward_D_B()  # calculate gradients for D_B
         self.optimizer_D.step()  # update D_A and D_B's weights
-        self.update_task_schedule()
         self.update_visuals()

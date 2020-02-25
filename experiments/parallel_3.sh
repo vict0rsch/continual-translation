@@ -45,7 +45,6 @@ python train.py \
     --lambda_R 0.5 \
     --lambda_D 0.5 \
     --lr 0.0001 \
-    --n_epochs 300
 
 #> lambda_I_A = lambda_A * lambda_I
 

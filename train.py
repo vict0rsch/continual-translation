@@ -37,6 +37,8 @@ if __name__ == "__main__":
     print("The number of training images = %d" % dataset_size)
     exp = comet_ml.Experiment(project_name="continual-translation")
     exp.log_parameters(dict(vars(opt)))
+    if "message" in opt:
+        exp.log_text(opt.message)
 
     exp.add_tag(Path(opt.dataroot).name)
     exp.add_tag(opt.model)
@@ -67,13 +69,15 @@ if __name__ == "__main__":
             model.set_input(data)  # unpack data from dataset and apply preprocessing
             model.optimize_parameters()  # calculate loss functions, get gradients, update network weights
 
-            repr_just_froze = repr_freeze == getattr(model, "repr_is_frozen", False)
-
-            if repr_just_froze:
-                exp.log_parameter("freezing_step", total_iters)
-
+            # ------------------------
+            # -----  Validation  -----
+            # ------------------------
             if total_iters == opt.batch_size or total_iters % opt.display_freq == 0:
-                eval(model, test_dataset, exp, total_iters)
+                metrics = eval(model, test_dataset, exp, total_iters)
+                model.update_task_schedule(metrics)
+                repr_just_froze = repr_freeze == getattr(model, "repr_is_frozen", False)
+                if repr_just_froze:
+                    exp.log_parameter("freezing_step", total_iters)
 
             if total_iters % opt.print_freq == 0:
                 # print training losses and save logging information to the disk
