@@ -219,18 +219,32 @@ class ContinualModel(BaseModel):
             self.rotationCriterion = torch.nn.CrossEntropyLoss()
             self.depthCriterion = torch.nn.MSELoss()
 
-            non_rot_params = itertools.chain(
-                self.netG_A.encoder.parameters(),
-                self.netG_A.decoder.parameters(),
-                self.netG_A.depth.parameters(),
-                self.netG_B.encoder.parameters(),
-                self.netG_B.decoder.parameters(),
-                self.netG_B.depth.parameters(),
-            )
+            if isinstance(self.netG_A, nn.DataParallel):
+                non_rot_params = itertools.chain(
+                    self.netG_A.module.encoder.parameters(),
+                    self.netG_A.module.decoder.parameters(),
+                    self.netG_A.module.depth.parameters(),
+                    self.netG_B.module.encoder.parameters(),
+                    self.netG_B.module.decoder.parameters(),
+                    self.netG_B.module.depth.parameters(),
+                )
+                rot_params = itertools.chain(
+                    self.netG_A.module.rotation.parameters(),
+                    self.netG_B.module.rotation.parameters(),
+                )
+            else:
 
-            rot_params = itertools.chain(
-                self.netG_A.rotation.parameters(), self.netG_B.rotation.parameters()
-            )
+                non_rot_params = itertools.chain(
+                    self.netG_A.encoder.parameters(),
+                    self.netG_A.decoder.parameters(),
+                    self.netG_A.depth.parameters(),
+                    self.netG_B.encoder.parameters(),
+                    self.netG_B.decoder.parameters(),
+                    self.netG_B.depth.parameters(),
+                )
+                rot_params = itertools.chain(
+                    self.netG_A.rotation.parameters(), self.netG_B.rotation.parameters()
+                )
 
             self.optimizer_G = torch.optim.Adam(
                 [{"params": non_rot_params}, {"params": rot_params, "lr": opt.lr_rot}],

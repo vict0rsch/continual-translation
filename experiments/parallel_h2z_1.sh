@@ -5,7 +5,7 @@
 #SBATCH --mem=32G                        # Ask for 32 GB of RAM
 #SBATCH --time=24:00:00                   # The job will run for 3 hours
 #SBATCH -o /scratch/vsch/continual/slurm-%j.out  # Write the log in $SCRATCH
-#SBATCH --qos high
+#SBATCH --qos unkillable
 
 #> first experiment to be able to scale minimal losses for other schedules:
 #> --task_schedule=parallel
@@ -32,7 +32,7 @@ unzip $SLURM_TMPDIR/$continual_dataset.zip -d $SLURM_TMPDIR > /dev/null
 #    and look for the dataset into $SLURM_TMPDIR
 python train.py \
     --sbatch_file=$0 \
-    --git_hash="3fad19911f582ae16e8a98cae1c0883bde6ab228" \
+    --git_hash="899e741f7e1f40fec4d66f7c0ef3c96419a18ab8" \
     --dataroot $SLURM_TMPDIR/$continual_dataset \
     --name "parallel_continual_0" \
     --model continual \
@@ -47,7 +47,7 @@ python train.py \
     --lambda_B 10.0 \
     --lambda_I 0.5 \
     --lambda_R 10.0 \
-    --lambda_D 10.0 \
+    --lambda_D 10.0
 
 
 # 5. Copy whatever you want to save on $SCRATCH
