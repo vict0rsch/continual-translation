@@ -47,7 +47,7 @@ python train.py \
     --lambda_I 0.5 \
     --lambda_R 10 \
     --lambda_D 10 \
-    --d_loss_threshold 0.15 \
+    --d_loss_threshold 0.1 \
     --r_acc_threshold 0.6 \
     --lr_rot 0.001
 

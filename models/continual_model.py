@@ -217,7 +217,7 @@ class ContinualModel(BaseModel):
             # by function <BaseModel.setup>.
 
             self.rotationCriterion = torch.nn.CrossEntropyLoss()
-            self.depthCriterion = torch.nn.MSELoss()
+            self.depthCriterion = torch.nn.L1Loss()
 
             if isinstance(self.netG_A, nn.DataParallel):
                 non_rot_params = itertools.chain(
