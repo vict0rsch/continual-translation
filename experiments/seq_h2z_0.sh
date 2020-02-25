@@ -32,7 +32,7 @@ unzip $SLURM_TMPDIR/$continual_dataset.zip -d $SLURM_TMPDIR > /dev/null
 #    and look for the dataset into $SLURM_TMPDIR
 python train.py \
     --sbatch_file=$0 \
-    --git_hash="3fad19911f582ae16e8a98cae1c0883bde6ab228" \
+    --git_hash="27f5972157a1f69d9feade9c8d3505b2930e758d" \
     --dataroot $SLURM_TMPDIR/$continual_dataset \
     --name "seq_continual_1" \
     --model continual \

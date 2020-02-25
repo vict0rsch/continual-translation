@@ -543,11 +543,12 @@ class ContinualModel(BaseModel):
                 self.__should_compute_rotation = False
                 self.__should_compute_depth = True
                 print("\n\n>> Stop rotation ; Start depth <<\n")
+                return
 
         d = self.opt.d_loss_threshold
         if self.__should_compute_depth:
             # never check again once we've changed task
-            if metrics["loss_G_A_d"] > d and metrics["loss_G_B_d"] > d:
+            if metrics["loss_G_A_d"] < d and metrics["loss_G_B_d"] < d:
                 self.__should_compute_depth = False
                 self.__should_compute_identity = True
                 self.__should_compute_translation = True
@@ -559,7 +560,7 @@ class ContinualModel(BaseModel):
             self.__should_compute_depth = True
 
         d = self.opt.d_loss_threshold
-        if metrics["loss_G_A_d"] > d and metrics["loss_G_B_d"] > d:
+        if metrics["loss_G_A_d"] < d and metrics["loss_G_B_d"] < d:
             self.__should_compute_identity = True
             self.__should_compute_translation = True
 
@@ -571,10 +572,10 @@ class ContinualModel(BaseModel):
         if (
             metrics["test_A_rot_acc"] > r
             and metrics["test_B_rot_acc"] > r
-            and metrics["test_A_loss_d"] > d
-            and metrics["test_B_loss_d"] > d
-            and metrics["loss_idt_A"] > i
-            and metrics["loss_idt_B"] > i
+            and metrics["test_A_loss_d"] < d
+            and metrics["test_B_loss_d"] < d
+            and metrics["loss_idt_A"] < i
+            and metrics["loss_idt_B"] < i
         ):
             self.__should_compute_translation = True
             self.__should_compute_identity = True
