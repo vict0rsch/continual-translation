@@ -101,6 +101,12 @@ class ContinualModel(BaseModel):
                 default=0.5,
                 help="minimal identity loss to switch task (representational only)",
             )
+            parser.add_argument(
+                "--lr_rot",
+                type=float,
+                default=0.0002,
+                help="minimal identity loss to switch task (representational only)",
+            )
 
         return parser
 
@@ -213,8 +219,21 @@ class ContinualModel(BaseModel):
             self.rotationCriterion = torch.nn.CrossEntropyLoss()
             self.depthCriterion = torch.nn.MSELoss()
 
+            non_rot_params = itertools.chain(
+                self.netG_A.encoder.parameters(),
+                self.netG_A.decoder.parameters(),
+                self.netG_A.depth.parameters(),
+                self.netG_B.encoder.parameters(),
+                self.netG_B.decoder.parameters(),
+                self.netG_B.depth.parameters(),
+            )
+
+            rot_params = itertools.chain(
+                self.netG_A.rotation.parameters(), self.netG_B.rotation.parameters()
+            )
+
             self.optimizer_G = torch.optim.Adam(
-                itertools.chain(self.netG_A.parameters(), self.netG_B.parameters()),
+                [{"params": non_rot_params}, {"params": rot_params, "lr": opt.lr_rot}],
                 lr=opt.lr,
                 betas=(opt.beta1, 0.999),
             )

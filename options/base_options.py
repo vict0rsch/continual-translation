@@ -4,6 +4,7 @@ from util import util
 import torch
 import models
 import data
+from pathlib import Path
 
 
 class BaseOptions:
@@ -245,6 +246,7 @@ class BaseOptions:
             opt.name = opt.name + suffix
 
         opt.dataroot = util.env_to_path(opt.dataroot)
+        opt.sbatch_file = Path(util.env_to_path(opt.sbatch_file)).name
 
         self.print_options(opt)
 

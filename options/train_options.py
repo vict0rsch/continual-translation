@@ -150,6 +150,11 @@ class TrainOptions(BaseOptions):
             type=str,
             # required=True,
         )
+        parser.add_argument(
+            "--sbatch_file",
+            type=str,
+            # required=True,
+        )
 
         self.isTrain = True
         return parser

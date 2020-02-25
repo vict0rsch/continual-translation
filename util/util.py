@@ -168,6 +168,9 @@ def env_to_path(path_str):
         path_str (str): path_str potentially containing the env variable
 
     """
+    if not path_str:
+        return path_str
+
     path_elements = path_str.split("/")
     new_path = []
     for el in path_elements:
