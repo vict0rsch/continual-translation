@@ -246,7 +246,8 @@ class BaseOptions:
             opt.name = opt.name + suffix
 
         opt.dataroot = util.env_to_path(opt.dataroot)
-        opt.sbatch_file = Path(util.env_to_path(opt.sbatch_file)).name
+        if "sbatch_file" in opt and opt.sbatch_file:
+            opt.sbatch_file = Path(util.env_to_path(opt.sbatch_file)).name
 
         self.print_options(opt)
 

@@ -94,7 +94,7 @@ if __name__ == "__main__":
                 save_suffix = "iter_%d" % total_iters if opt.save_by_iter else "latest"
                 model.save_networks(save_suffix)
             if i % 50 == 0:
-                print("Iter {} \r".format(i), end="")
+                print("Iter {} ({})\r".format(i, total_iters), end="")
 
             iter_data_time = time.time()
         if epoch % opt.save_epoch_freq == 0:

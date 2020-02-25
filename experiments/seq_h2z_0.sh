@@ -5,7 +5,7 @@
 #SBATCH --mem=32G                        # Ask for 32 GB of RAM
 #SBATCH --time=24:00:00                   # The job will run for 3 hours
 #SBATCH -o /scratch/vsch/continual/slurm-%j.out  # Write the log in $SCRATCH
-#SBATCH --qos unkillable
+#SBATCH --qos high
 
 #> first experiment to be able to scale minimal losses for other schedules:
 #> --task_schedule=parallel
@@ -31,23 +31,25 @@ unzip $SLURM_TMPDIR/$continual_dataset.zip -d $SLURM_TMPDIR > /dev/null
 # 4. Launch your job, tell it to save the model in $SLURM_TMPDIR
 #    and look for the dataset into $SLURM_TMPDIR
 python train.py \
-    --batch_size 5 \
-    --checkpoints_dir "/scratch/vsch/continual/checkpoints" \
-    --dataroot $SLURM_TMPDIR/$continual_dataset \
-    --display_freq 5000 \
-    --git_hash="f86463b69f8f901d14af44a1c1b89b7b0a1a49eb" \
-    --lambda_A 10.0 \
-    --lambda_B 10.0 \
-    --lambda_D 10.0 \
-    --lambda_I 0.5 \
-    --lambda_R 10.0 \
-    --lr_rot 0.0001 \
-    --message "same as parallel_h2z_0, smaller learning rate for rotation" \
-    --model continual \
-    --name "parallel_continual_1" \
-    --netG "continual" \
     --sbatch_file=$0 \
-    --task_schedule "parallel"
+    --git_hash="3fad19911f582ae16e8a98cae1c0883bde6ab228" \
+    --dataroot $SLURM_TMPDIR/$continual_dataset \
+    --name "seq_continual_1" \
+    --model continual \
+    --checkpoints_dir "/scratch/vsch/continual/checkpoints" \
+    --display_freq 5000 \
+    --batch_size 5 \
+    --netG "continual" \
+    --task_schedule "sequential" \
+    --message "seq h2z exp with lambda_R and _D are set to 10" \
+    --lambda_A 10 \
+    --lambda_B 10 \
+    --lambda_I 0.5 \
+    --lambda_R 10 \
+    --lambda_D 10 \
+    --d_loss_threshold 0.15 \
+    --r_acc_threshold 0.6 \
+    --lr_rot 0.001
 
 
 # 5. Copy whatever you want to save on $SCRATCH

@@ -858,7 +858,6 @@ class ContinualGenerator(nn.Module):
 
         decoder = []
         depth = []
-        rotation = []
         for i in range(n_blocks // 2):  # add ResNet blocks
             decoder += [
                 ResnetBlock(
@@ -878,15 +877,15 @@ class ContinualGenerator(nn.Module):
                     use_bias=use_bias,
                 )
             ]
-            rotation += [
-                ResnetBlock(
-                    ngf * mult,
-                    padding_type=padding_type,
-                    norm_layer=norm_layer,
-                    use_dropout=use_dropout,
-                    use_bias=use_bias,
-                )
-            ]
+            # rotation += [
+            #     ResnetBlock(
+            #         ngf * mult,
+            #         padding_type=padding_type,
+            #         norm_layer=norm_layer,
+            #         use_dropout=use_dropout,
+            #         use_bias=use_bias,
+            #     )
+            # ]
 
         for i in range(n_downsampling):  # add upsampling layers
             mult = 2 ** (n_downsampling - i)
@@ -916,29 +915,41 @@ class ContinualGenerator(nn.Module):
                 norm_layer(int(ngf * mult / 2)),
                 nn.ReLU(True),
             ]
-
-        rotation += [
-            nn.Conv2d(
-                depth[0].conv_block[1].weight.shape[0], 1, kernel_size=1, padding=0
-            )
-        ]
         mult = 2 ** n_downsampling
-        rotation += [
-            nn.Conv2d(1, 1, kernel_size=3, stride=2, padding=1, bias=use_bias,),
-            norm_layer(1),
-            nn.LeakyReLU(True),
-        ]
-
-        rotation += [FCView()]
-        rotation += [nn.Linear(1024, 256)]
-        rotation += [nn.LeakyReLU()]
-        rotation += [nn.Linear(256, 4)]
-
         decoder += [nn.ReflectionPad2d(3)]
         depth += [nn.ReflectionPad2d(3)]
         decoder += [nn.Conv2d(ngf, 3, kernel_size=7, padding=0)]
         depth += [nn.Conv2d(ngf, 1, kernel_size=7, padding=0)]
         decoder += [nn.Tanh()]
+
+        rotation = []
+        # 256 * 64 * 64
+        rotation += [
+            nn.Conv2d(
+                depth[0].conv_block[1].weight.shape[0],
+                256,
+                kernel_size=3,
+                stride=2,
+                padding=1,
+            ),
+            norm_layer(256),
+            nn.LeakyReLU(0.2, True),
+        ]  # 256 * 32 * 32
+
+        rotation += [
+            nn.Conv2d(256, 256, kernel_size=3, stride=2, padding=1, bias=use_bias,),
+            norm_layer(256),
+            nn.LeakyReLU(0.2, True),
+            nn.MaxPool2d(2),
+        ]  # 256 * 8 * 8
+        rotation += [
+            nn.Conv2d(256, 256, kernel_size=3, stride=2, padding=1, bias=use_bias,),
+            norm_layer(256),
+            nn.LeakyReLU(0.2, True),
+        ]  # 256 * 4 * 4
+
+        rotation += [FCView()]
+        rotation += [nn.Linear(256 * 4 * 4, 4)]
 
         self.encoder = nn.Sequential(*encoder)
         self.decoder = nn.Sequential(*decoder)

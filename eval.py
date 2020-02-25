@@ -29,7 +29,7 @@ def eval(
             "B": {"cycle": [], "idt": [], "real": [], "fake": []},
         }
         ignore = set()
-        force = {"rotation", "depth"}
+        force = {"rotation", "depth", "identity", "translation"}
         print()
         losses = {
             k: []
@@ -40,7 +40,7 @@ def eval(
             print(f"\rEval batch {i}", end="")
             model.set_input(b)
             model.forward(ignore, force)
-            model.backward_G(losses_only=True)
+            model.backward_G(losses_only=True, ignore=ignore, force=force)
 
             for k in dir(model):
                 if k.startswith("loss_") and isinstance(
@@ -93,6 +93,8 @@ def eval(
                 test_images["B"]["fake"].append(model.fake_A.detach().cpu().numpy())
             else:
                 ignore.add("translation")
+                if "translation" in force:
+                    force.remove("translation")
     print()
     # --------------------------------
     # -----  Create image tiles  -----

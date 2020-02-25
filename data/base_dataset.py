@@ -4,7 +4,7 @@ It also includes common transformation functions (e.g., get_transform, custom_sc
 import random
 import numpy as np
 import torch.utils.data as data
-from util.util import angle_to_tensor
+from util.util import angles_to_tensors
 from PIL import Image
 import torchvision.transforms as transforms
 from abc import ABC, abstractmethod
@@ -209,9 +209,16 @@ class _Rotate:
         super().__init__()
 
     def __call__(self, dic):
-        angle = np.random.choice([0, 90, 180, 270])
-        dic.update({k: v.rotate(angle) for k, v in dic.items() if k.startswith("r")})
-        dic["angle"] = angle_to_tensor(angle)
+        angles = [[0, 90, 180, 270][i] for i in np.random.permutation(4)]
+        dic.update(
+            {
+                k + str(angle): v.rotate(angle)
+                for k, v in dic.items()
+                for angle in angles
+                if k.startswith("r")
+            }
+        )
+        dic["angle"] = angles_to_tensors(angles)
         return dic
 
 
@@ -238,6 +245,10 @@ class _Normalize:
                 continue
             if "d" in k:
                 dic.update({k: self.transforms["depth"](v)})
+            elif "r" in k:
+                means = (0.5,) * len(v)
+                stds = (0.5,) * len(v)
+                dic.update({k: transforms.Normalize(means, stds)(v)})
             else:
                 dic.update({k: self.transforms["img"](v)})
         return dic
@@ -257,8 +268,28 @@ class _ToTensor:
                 if len(t.shape) == 2:
                     t.unsqueeze_(0)
                 dic.update({k: t})
+            elif "r" in k:
+                new_rot = torch.cat(
+                    [
+                        self.to_tensor(v)
+                        for k, v in dic.items()
+                        if len(k) > 2 and k.startswith("r")
+                    ],
+                    dim=0,
+                )
+                dic.update(
+                    {
+                        k: new_rot
+                        for k in dic.keys()
+                        if k.startswith("r") and len(k) == 2
+                    }
+                )
             else:
                 dic.update({k: self.to_tensor(v)})
+        keys = list(dic.keys())
+        for k in keys:
+            if len(k) > 2 and k.startswith("r"):
+                del dic[k]
         return dic
 
 

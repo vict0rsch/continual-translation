@@ -3,6 +3,7 @@ import torch
 from collections import OrderedDict
 from abc import ABC, abstractmethod
 from . import networks
+import torch.nn as nn
 
 
 class BaseModel(ABC):
@@ -140,9 +141,10 @@ class BaseModel(ABC):
         errors_ret = OrderedDict()
         for name in self.loss_names:
             if isinstance(name, str):
-                errors_ret[name] = float(
-                    getattr(self, "loss_" + name)
-                )  # float(...) works for both scalar tensor and float number
+                if hasattr(self, "loss_" + name):
+                    errors_ret[name] = float(
+                        getattr(self, "loss_" + name)
+                    )  # float(...) works for both scalar tensor and float number
         return errors_ret
 
     def save_networks(self, epoch):

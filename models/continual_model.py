@@ -84,7 +84,7 @@ class ContinualModel(BaseModel):
             #
             # representational :  <rotation, depth, identity> then <translation>
             parser.add_argument(
-                "--r_loss_threshold",
+                "--r_acc_threshold",
                 type=float,
                 default=0.2,
                 help="minimal rotation classification loss to switch task",
@@ -269,14 +269,22 @@ class ContinualModel(BaseModel):
         AtoB = self.opt.direction == "AtoB"
         self.real_A = input["A" if AtoB else "B"].to(self.device)
         self.depth_A = input["dA" if AtoB else "dB"].to(self.device).float()
-        self.rot_A = input["rA" if AtoB else "rB"].to(self.device)
-        self.angle_A = input["angleA" if AtoB else "angleB"].to(self.device)
+        self.rot_A = (
+            input["rA" if AtoB else "rB"]
+            .to(self.device)
+            .view(-1, 3, self.real_A.shape[-2], self.real_A.shape[-1])
+        )
+        self.angle_A = input["angleA" if AtoB else "angleB"].to(self.device).view(-1)
         self.image_paths_A = input["A_paths" if AtoB else "B_paths"]
 
         self.real_B = input["B" if AtoB else "A"].to(self.device)
         self.depth_B = input["dB" if AtoB else "dA"].to(self.device).float()
-        self.rot_B = input["rB" if AtoB else "rA"].to(self.device)
-        self.angle_B = input["angleB" if AtoB else "angleA"].to(self.device)
+        self.rot_B = (
+            input["rB" if AtoB else "rA"]
+            .to(self.device)
+            .view(-1, 3, self.real_B.shape[-2], self.real_B.shape[-1])
+        )
+        self.angle_B = input["angleB" if AtoB else "angleA"].to(self.device).view(-1)
         self.image_paths_B = input["B_paths" if AtoB else "A_paths"]
 
     def forward(self, ignore=set(), force=set()):
@@ -307,10 +315,12 @@ class ContinualModel(BaseModel):
             # --------------------
             self.z_A = self.netG_A.module.encoder(self.real_A)
             self.z_B = self.netG_B.module.encoder(self.real_B)
+            self.z_rA = self.netG_A.module.encoder(self.rot_A)
+            self.z_rB = self.netG_B.module.encoder(self.rot_B)
 
             if should["rotation"]:
-                self.angle_A_pred = self.netG_A.module.rotation(self.z_A)
-                self.angle_B_pred = self.netG_B.module.rotation(self.z_B)
+                self.angle_A_pred = self.netG_A.module.rotation(self.z_rA)
+                self.angle_B_pred = self.netG_B.module.rotation(self.z_rB)
 
             if should["depth"]:
                 self.depth_A_pred = self.netG_A.module.depth(self.z_A)
@@ -334,10 +344,12 @@ class ContinualModel(BaseModel):
             # --------------------
             self.z_A = self.netG_A.encoder(self.real_A)
             self.z_B = self.netG_B.encoder(self.real_B)
+            self.z_rA = self.netG_A.encoder(self.rot_A)
+            self.z_rB = self.netG_B.encoder(self.rot_B)
 
             if should["rotation"]:
-                self.angle_A_pred = self.netG_A.rotation(self.z_A)
-                self.angle_B_pred = self.netG_B.rotation(self.z_B)
+                self.angle_A_pred = self.netG_A.rotation(self.z_rA)
+                self.angle_B_pred = self.netG_B.rotation(self.z_rB)
 
             if should["depth"]:
                 self.depth_A_pred = self.netG_A.depth(self.z_A)
@@ -401,17 +413,23 @@ class ContinualModel(BaseModel):
             self.visual_names.add("rec_A")
             self.visual_names.add("rec_B")
         else:
-            self.visual_names.remove("fake_A")
-            self.visual_names.remove("fake_B")
-            self.visual_names.remove("rec_A")
-            self.visual_names.remove("rec_B")
+            if "fake_A" in self.visual_names:
+                self.visual_names.remove("fake_A")
+            if "fake_B" in self.visual_names:
+                self.visual_names.remove("fake_B")
+            if "rec_A" in self.visual_names:
+                self.visual_names.remove("rec_A")
+            if "rec_B" in self.visual_names:
+                self.visual_names.remove("rec_B")
 
         if self.__should_compute_identity:
             self.visual_names.add("idt_B")
             self.visual_names.add("idt_A")
         else:
-            self.visual_names.remove("idt_B")
-            self.visual_names.remove("idt_A")
+            if "idt_B" in self.visual_names:
+                self.visual_names.remove("idt_B")
+            if "idt_A" in self.visual_names:
+                self.visual_names.remove("idt_A")
 
         if self.__should_compute_depth:
             self.visual_names.add("depth_B")
@@ -419,12 +437,16 @@ class ContinualModel(BaseModel):
             self.visual_names.add("depth_A")
             self.visual_names.add("depth_A_pred")
         else:
-            self.visual_names.remove("depth_B")
-            self.visual_names.remove("depth_B_pred")
-            self.visual_names.remove("depth_A")
-            self.visual_names.remove("depth_A_pred")
+            if "depth_B" in self.visual_names:
+                self.visual_names.remove("depth_B")
+            if "depth_B_pred" in self.visual_names:
+                self.visual_names.remove("depth_B_pred")
+            if "depth_A" in self.visual_names:
+                self.visual_names.remove("depth_A")
+            if "depth_A_pred" in self.visual_names:
+                self.visual_names.remove("depth_A_pred")
 
-    def backward_G(self, losses_only=False):
+    def backward_G(self, losses_only=False, ignore=set(), force=set()):
         """Calculate the loss for generators G_A and G_B"""
         lambda_idt = self.opt.lambda_I
         lambda_A = self.opt.lambda_A
@@ -432,8 +454,25 @@ class ContinualModel(BaseModel):
         lambda_D = self.opt.lambda_D
         lambda_R = self.opt.lambda_R
 
+        lambda_total = 0
+
+        assert not (ignore & force)
+        should = {
+            "rotation": False,
+            "depth": False,
+            "identity": False,
+            "translation": False,
+        }
+        for k in should:
+            if k in force:
+                should[k] = True
+            elif k in ignore:
+                should[k] = False
+            else:
+                should[k] = self.should_compute(k)
+
         self.loss_G = 0
-        if self.should_compute("depth"):
+        if should["depth"]:
             # print("depth loss")
             device = self.depth_A_pred.device
             self.loss_G_A_d = self.depthCriterion(
@@ -443,8 +482,9 @@ class ContinualModel(BaseModel):
                 self.depth_B_pred, self.depth_B.to(device)
             )
             self.loss_G += lambda_D * (self.loss_G_B_d + self.loss_G_A_d)
+            lambda_total += 2 * lambda_D
 
-        if self.should_compute("rotation"):
+        if should["rotation"]:
             # print("rotation loss")
             device = self.angle_A_pred.device
             self.loss_G_A_r = self.rotationCriterion(
@@ -456,8 +496,9 @@ class ContinualModel(BaseModel):
                 angles_to_tensors(self.angle_B, one_hot=False).to(device),
             )
             self.loss_G += lambda_R * (self.loss_G_B_r + self.loss_G_A_r)
+            lambda_total += 2 * lambda_R
 
-        if self.should_compute("identity"):
+        if should["identity"]:
             # print("identity loss")
             # Identity loss
             assert lambda_idt > 0
@@ -471,8 +512,10 @@ class ContinualModel(BaseModel):
             )
 
             self.loss_G += self.loss_idt_A + self.loss_idt_B
+            lambda_total += lambda_A * lambda_idt + lambda_B * lambda_idt
 
-        if self.should_compute("translation"):
+        if should["translation"]:
+            # print("translation loss")
             # GAN loss D_A(G_A(A))
             self.loss_G_A = self.criterionGAN(self.netD_A(self.fake_B), True)
             # GAN loss D_B(G_B(B))
@@ -485,16 +528,21 @@ class ContinualModel(BaseModel):
             self.loss_G += (
                 self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B
             )
+            lambda_total += lambda_A + lambda_B
+
+        self.loss_G /= lambda_total
+
         if not losses_only:
             self.loss_G.backward()
 
     def sequential_schedule(self, metrics):
-        r = self.opt.r_loss_threshold
+        r = self.opt.r_acc_threshold
         if self.__should_compute_rotation:
             # never check again once we've changed task
-            if metrics["loss_G_A_r"] > r and metrics["loss_G_B_r"] > r:
+            if metrics["test_A_rot_acc"] > r and metrics["test_B_rot_acc"] > r:
                 self.__should_compute_rotation = False
                 self.__should_compute_depth = True
+                print("\n\n>> Stop rotation ; Start depth <<\n")
 
         d = self.opt.d_loss_threshold
         if self.__should_compute_depth:
@@ -503,10 +551,11 @@ class ContinualModel(BaseModel):
                 self.__should_compute_depth = False
                 self.__should_compute_identity = True
                 self.__should_compute_translation = True
+                print("\n\n>> Stop depth ; Start translation <<\n")
 
     def additional_schedule(self, metrics):
-        r = self.opt.r_loss_threshold
-        if metrics["loss_G_A_r"] > r and metrics["loss_G_B_r"] > r:
+        r = self.opt.r_acc_threshold
+        if metrics["test_A_rot_acc"] > r and metrics["test_B_rot_acc"] > r:
             self.__should_compute_depth = True
 
         d = self.opt.d_loss_threshold
@@ -515,7 +564,7 @@ class ContinualModel(BaseModel):
             self.__should_compute_translation = True
 
     def representational_schedule(self, metrics):
-        r = self.opt.r_loss_threshold
+        r = self.opt.r_acc_threshold
         d = self.opt.d_loss_threshold
         i = self.opt.i_loss_threshold
 
@@ -586,9 +635,10 @@ class ContinualModel(BaseModel):
         self.backward_G()  # calculate gradients for G_A and G_B
         self.optimizer_G.step()  # update G_A and G_B's weights
         # D_A and D_B
-        self.set_requires_grad([self.netD_A, self.netD_B], True)
-        self.optimizer_D.zero_grad()  # set D_A and D_B's gradients to zero
-        self.backward_D_A()  # calculate gradients for D_A
-        self.backward_D_B()  # calculate gradients for D_B
-        self.optimizer_D.step()  # update D_A and D_B's weights
-        self.update_visuals()
+        if self.should_compute("translation"):
+            self.set_requires_grad([self.netD_A, self.netD_B], True)
+            self.optimizer_D.zero_grad()  # set D_A and D_B's gradients to zero
+            self.backward_D_A()  # calculate gradients for D_A
+            self.backward_D_B()  # calculate gradients for D_B
+            self.optimizer_D.step()  # update D_A and D_B's weights
+            self.update_visuals()
