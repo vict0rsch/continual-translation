@@ -570,11 +570,13 @@ class ContinualModel(BaseModel):
         r = self.opt.r_acc_threshold
         if metrics["test_A_rot_acc"] > r and metrics["test_B_rot_acc"] > r:
             self.__should_compute_depth = True
+            print("\n\n>> Start depth <<\n")
 
         d = self.opt.d_loss_threshold
         if metrics["test_A_loss_d"] < d and metrics["test_B_loss_d"] < d:
             self.__should_compute_identity = True
             self.__should_compute_translation = True
+            print("\n\n>> Start depth <<\n")
 
     def representational_schedule(self, metrics):
         r = self.opt.r_acc_threshold
@@ -589,14 +591,36 @@ class ContinualModel(BaseModel):
             and metrics["loss_idt_A"] < i
             and metrics["loss_idt_B"] < i
         ):
+            print("\n\n>> Start translation <<\n")
             self.__should_compute_translation = True
             self.__should_compute_identity = True
             self.__should_compute_rotation = False
             self.__should_compute_depth = False
             if not self.repr_is_frozen:
-                self.set_requires_grad(
-                    [self.netG_A.encoder, self.netG_B.encoder], requires_grad=False
-                )
+                if isinstance(self.netG_A, nn.DataParallel):
+                    self.set_requires_grad(
+                        [
+                            self.netG_A.module.encoder,
+                            self.netG_A.module.rotation,
+                            self.netG_A.module.depth,
+                            self.netG_B.module.encoder,
+                            self.netG_B.module.rotation,
+                            self.netG_B.module.depth,
+                        ],
+                        requires_grad=False,
+                    )
+                else:
+                    self.set_requires_grad(
+                        [
+                            self.netG_A.encoder,
+                            self.netG_A.rotation,
+                            self.netG_A.depth,
+                            self.netG_B.encoder,
+                            self.netG_B.rotation,
+                            self.netG_B.depth,
+                        ],
+                        requires_grad=False,
+                    )
                 self.repr_is_frozen = True
 
     def parallel_schedule(self, metrics):

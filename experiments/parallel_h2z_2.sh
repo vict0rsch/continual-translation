@@ -34,14 +34,14 @@ python train.py \
     --sbatch_file=$0 \
     --git_hash="9d66a192b20c80737fe47b7346da48e3cfc802a6" \
     --dataroot $SLURM_TMPDIR/$continual_dataset \
-    --name "seq_continual_2" \
+    --name "par_continual_1" \
     --model continual \
     --checkpoints_dir "/scratch/vsch/continual/checkpoints" \
     --display_freq 5000 \
     --batch_size 5 \
     --netG "continual" \
-    --task_schedule "sequential" \
-    --message "seq h2z exp with more epochs and depth lr" \
+    --task_schedule "parallel" \
+    --message "par h2z exp with with more epochs + rot & depth lr" \
     --lambda_A 10 \
     --lambda_B 10 \
     --lambda_I 0.5 \

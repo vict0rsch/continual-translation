@@ -32,13 +32,13 @@ unzip $SLURM_TMPDIR/$continual_dataset.zip -d $SLURM_TMPDIR > /dev/null
 #    and look for the dataset into $SLURM_TMPDIR
 python train.py \
     --sbatch_file=$0 \
-    --git_hash="d6246f5405a05b11b299d24d453266ad2ec10efc" \
+    --git_hash="9d66a192b20c80737fe47b7346da48e3cfc802a6" \
     --dataroot $SLURM_TMPDIR/$continual_dataset \
     --name "add_continual_0" \
     --model continual \
     --checkpoints_dir "/scratch/vsch/continual/checkpoints" \
     --display_freq 5000 \
-    --batch_size 5 \
+    --batch_size 4 \
     --netG "continual" \
     --task_schedule "additional" \
     --message "add h2z exp with with more epochs + rot & depth lr" \
