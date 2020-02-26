@@ -24,6 +24,7 @@ from util.util import tensor2im, decode_md
 from copy import copy
 from eval import eval
 from pathlib import Path
+import os
 
 if __name__ == "__main__":
     opt = TrainOptions().parse()  # get training options
@@ -42,6 +43,7 @@ if __name__ == "__main__":
 
     exp.add_tag(Path(opt.dataroot).name)
     exp.add_tag(opt.model)
+    exp.log_parameter("slurm_job_id", os.environ.get("SLURM_JOB_ID", ""))
     if "task_schedule" in opt:
         exp.add_tag(opt.task_schedule)
 

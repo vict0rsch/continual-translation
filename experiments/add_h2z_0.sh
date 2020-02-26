@@ -34,14 +34,14 @@ python train.py \
     --sbatch_file=$0 \
     --git_hash="d6246f5405a05b11b299d24d453266ad2ec10efc" \
     --dataroot $SLURM_TMPDIR/$continual_dataset \
-    --name "seq_continual_1" \
+    --name "add_continual_0" \
     --model continual \
     --checkpoints_dir "/scratch/vsch/continual/checkpoints" \
     --display_freq 5000 \
     --batch_size 5 \
     --netG "continual" \
-    --task_schedule "sequential" \
-    --message "seq h2z exp with lambda_R and _D are set to 10" \
+    --task_schedule "additional" \
+    --message "add h2z exp with with more epochs + rot & depth lr" \
     --lambda_A 10 \
     --lambda_B 10 \
     --lambda_I 0.5 \
@@ -49,7 +49,10 @@ python train.py \
     --lambda_D 10 \
     --d_loss_threshold 0.1 \
     --r_acc_threshold 0.6 \
-    --lr_rot 0.001
+    --lr_rot 0.001 \
+    --lr_depth 0.001 \
+    --n_epochs_decay 200 \
+    --n_epochs 200
 
 
 # 5. Copy whatever you want to save on $SCRATCH

@@ -107,6 +107,12 @@ class ContinualModel(BaseModel):
                 default=0.0002,
                 help="minimal identity loss to switch task (representational only)",
             )
+            parser.add_argument(
+                "--lr_depth",
+                type=float,
+                default=0.0002,
+                help="minimal identity loss to switch task (representational only)",
+            )
 
         return parser
 
@@ -220,12 +226,14 @@ class ContinualModel(BaseModel):
             self.depthCriterion = torch.nn.L1Loss()
 
             if isinstance(self.netG_A, nn.DataParallel):
-                non_rot_params = itertools.chain(
+                params = itertools.chain(
                     self.netG_A.module.encoder.parameters(),
                     self.netG_A.module.decoder.parameters(),
-                    self.netG_A.module.depth.parameters(),
                     self.netG_B.module.encoder.parameters(),
                     self.netG_B.module.decoder.parameters(),
+                )
+                depth_params = itertools.chain(
+                    self.netG_A.module.depth.parameters(),
                     self.netG_B.module.depth.parameters(),
                 )
                 rot_params = itertools.chain(
@@ -233,21 +241,25 @@ class ContinualModel(BaseModel):
                     self.netG_B.module.rotation.parameters(),
                 )
             else:
-
-                non_rot_params = itertools.chain(
+                params = itertools.chain(
                     self.netG_A.encoder.parameters(),
                     self.netG_A.decoder.parameters(),
-                    self.netG_A.depth.parameters(),
                     self.netG_B.encoder.parameters(),
                     self.netG_B.decoder.parameters(),
-                    self.netG_B.depth.parameters(),
+                )
+                depth_params = itertools.chain(
+                    self.netG_A.depth.parameters(), self.netG_B.depth.parameters(),
                 )
                 rot_params = itertools.chain(
                     self.netG_A.rotation.parameters(), self.netG_B.rotation.parameters()
                 )
 
             self.optimizer_G = torch.optim.Adam(
-                [{"params": non_rot_params}, {"params": rot_params, "lr": opt.lr_rot}],
+                [
+                    {"params": params},
+                    {"params": rot_params, "lr": opt.lr_rot},
+                    {"params": depth_params, "lr": opt.lr_depth},
+                ],
                 lr=opt.lr,
                 betas=(opt.beta1, 0.999),
             )
@@ -548,7 +560,7 @@ class ContinualModel(BaseModel):
         d = self.opt.d_loss_threshold
         if self.__should_compute_depth:
             # never check again once we've changed task
-            if metrics["loss_G_A_d"] < d and metrics["loss_G_B_d"] < d:
+            if metrics["test_A_loss_d"] < d and metrics["test_B_loss_d"] < d:
                 self.__should_compute_depth = False
                 self.__should_compute_identity = True
                 self.__should_compute_translation = True
@@ -560,7 +572,7 @@ class ContinualModel(BaseModel):
             self.__should_compute_depth = True
 
         d = self.opt.d_loss_threshold
-        if metrics["loss_G_A_d"] < d and metrics["loss_G_B_d"] < d:
+        if metrics["test_A_loss_d"] < d and metrics["test_B_loss_d"] < d:
             self.__should_compute_identity = True
             self.__should_compute_translation = True
 
