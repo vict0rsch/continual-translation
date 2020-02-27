@@ -576,7 +576,7 @@ class ContinualModel(BaseModel):
         if metrics["test_A_loss_d"] < d and metrics["test_B_loss_d"] < d:
             self.__should_compute_identity = True
             self.__should_compute_translation = True
-            print("\n\n>> Start depth <<\n")
+            print("\n\n>> Start translation <<\n")
 
     def representational_schedule(self, metrics):
         r = self.opt.r_acc_threshold
@@ -588,8 +588,8 @@ class ContinualModel(BaseModel):
             and metrics["test_B_rot_acc"] > r
             and metrics["test_A_loss_d"] < d
             and metrics["test_B_loss_d"] < d
-            and metrics["loss_idt_A"] < i
-            and metrics["loss_idt_B"] < i
+            and metrics["test_loss_idt_A"] < i
+            and metrics["test_loss_idt_B"] < i
         ):
             print("\n\n>> Start translation <<\n")
             self.__should_compute_translation = True

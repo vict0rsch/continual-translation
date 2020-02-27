@@ -260,7 +260,10 @@ def eval(
         "test_A_rot_acc": test_A_rot_acc,
         "test_B_rot_acc": test_B_rot_acc,
     }
-    metrics.update({k: np.mean(v) for k, v in losses.items()})
+    test_losses = {}
+    for k, v in losses.items():
+        test_losses["test_" + k] = v
+    metrics.update({k: np.mean(v) for k, v in test_losses.items()})
     return metrics
 
 

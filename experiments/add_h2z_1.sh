@@ -5,7 +5,7 @@
 #SBATCH --mem=32G                        # Ask for 32 GB of RAM
 #SBATCH --time=24:00:00                   # The job will run for 3 hours
 #SBATCH -o /scratch/vsch/continual/slurm-%j.out  # Write the log in $SCRATCH
-#SBATCH --qos high
+#SBATCH --qos unkillable
 
 #> first experiment to be able to scale minimal losses for other schedules:
 #> --task_schedule=parallel
@@ -34,21 +34,21 @@ python train.py \
     --sbatch_file=$0 \
     --git_hash="9d66a192b20c80737fe47b7346da48e3cfc802a6" \
     --dataroot $SLURM_TMPDIR/$continual_dataset \
-    --name "par_continual_1" \
+    --name "add_continual_1" \
     --model continual \
     --checkpoints_dir "/scratch/vsch/continual/checkpoints" \
     --display_freq 5000 \
     --batch_size 4 \
     --netG "continual" \
-    --task_schedule "parallel" \
-    --message "par h2z exp with with more epochs + rot & depth lr" \
+    --task_schedule "additional" \
+    --message "add h2z exp smaller lambda R and D | add_h2z_1" \
     --lambda_A 10 \
     --lambda_B 10 \
     --lambda_I 0.5 \
-    --lambda_R 10 \
-    --lambda_D 10 \
-    --d_loss_threshold 0.1 \
-    --r_acc_threshold 0.6 \
+    --lambda_R 5 \
+    --lambda_D 5 \
+    --d_loss_threshold 0.05 \
+    --r_acc_threshold 0.85 \
     --lr_rot 0.001 \
     --lr_depth 0.001 \
     --n_epochs_decay 200 \
