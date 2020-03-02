@@ -91,6 +91,7 @@ if __name__ == "__main__":
         exp = comet_ml.Experiment(project_name="continual-translation")
         exp.add_tag(Path(opt.dataroot).name)
         exp.add_tag(opt.model)
+        model.exp = exp
         if "task_schedule" in opt:
             exp.add_tag(opt.task_schedule)
         exp.add_tag("functional_test")

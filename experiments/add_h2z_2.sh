@@ -31,24 +31,23 @@ unzip $SLURM_TMPDIR/$continual_dataset.zip -d $SLURM_TMPDIR > /dev/null
 # 4. Launch your job, tell it to save the model in $SLURM_TMPDIR
 #    and look for the dataset into $SLURM_TMPDIR
 python train.py \
-    --git_hash="446464c72b52c77f0f24902436ccc030f903913c" \
+    --git_hash="9d66a192b20c80737fe47b7346da48e3cfc802a6" \
     --dataroot $SLURM_TMPDIR/$continual_dataset \
-    --name "repr_continual_0" \
+    --name "add_continual_2" \
     --model continual \
     --checkpoints_dir "/scratch/vsch/continual/checkpoints" \
     --display_freq 5000 \
     --batch_size 4 \
     --netG "continual" \
-    --task_schedule "representational" \
-    --message "repr h2z exp lambda R = D = I | repr_h2z_0" \
+    --task_schedule "additional" \
+    --message "add h2z exp even smaller (2nd time) lambda R and D | add_h2z_2" \
     --lambda_A 10 \
     --lambda_B 10 \
     --lambda_I 0.5 \
-    --lambda_R 5 \
-    --lambda_D 5 \
+    --lambda_R 1 \
+    --lambda_D 1 \
     --d_loss_threshold 0.05 \
     --r_acc_threshold 0.85 \
-    --i_loss_threshold 0.5 \
     --lr_rot 0.001 \
     --lr_depth 0.001 \
     --n_epochs_decay 200 \

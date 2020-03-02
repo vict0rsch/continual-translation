@@ -1,5 +1,5 @@
 ----------------- Options ---------------
-               batch_size: 3                             	[default: 1]
+               batch_size: 1                             
                     beta1: 0.5                           
           checkpoints_dir: ./checkpoints                 
            continue_train: False                         
@@ -33,6 +33,7 @@
                 load_size: 286                           
                        lr: 0.0002                        
            lr_decay_iters: 50                            
+                 lr_depth: 0.0002                        
                 lr_policy: linear                        
                    lr_rot: 0.0002                        
          max_dataset_size: inf                           
@@ -49,7 +50,7 @@
                   no_flip: False                         
                   no_html: False                         
                      norm: instance                      
-              num_threads: 1                             	[default: 6]
+              num_threads: 6                             
                 output_nc: 3                             
                     phase: train                         
                 pool_size: 50                            

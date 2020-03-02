@@ -157,6 +157,8 @@ class ContinualModel(BaseModel):
         else:  # during test time, only load Gs
             self.model_names = ["G_A", "G_B"]
 
+        self.exp = None
+
         # define networks (both Generators and discriminators)
         # The naming is different from those used in the paper.
         # Code (vs. paper): G_A (G), G_B (F), D_A (D_Y), D_B (D_X)
@@ -271,6 +273,15 @@ class ContinualModel(BaseModel):
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
         self.init_schedule()
+
+    def get_state_dict(self):
+        return {
+            "net" + k: getattr(self, "net" + k).state_dict() for k in self.model_names
+        }
+
+    def set_state_dict(self, d):
+        for k, v in d.items():
+            getattr(self, k).load_state_dict(v)
 
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
@@ -555,6 +566,9 @@ class ContinualModel(BaseModel):
                 self.__should_compute_rotation = False
                 self.__should_compute_depth = True
                 print("\n\n>> Stop rotation ; Start depth <<\n")
+                if self.exp:
+                    self.exp.log_parameter("schedule_start_depth", self.total_iters)
+                    self.exp.log_parameter("schedule_stop_rotation", self.total_iters)
                 return
 
         d = self.opt.d_loss_threshold
@@ -564,6 +578,11 @@ class ContinualModel(BaseModel):
                 self.__should_compute_depth = False
                 self.__should_compute_identity = True
                 self.__should_compute_translation = True
+                if self.exp:
+                    self.exp.log_parameter(
+                        "schedule_start_translation", self.total_iters
+                    )
+                    self.exp.log_parameter("schedule_stop_depth", self.total_iters)
                 print("\n\n>> Stop depth ; Start translation <<\n")
 
     def additional_schedule(self, metrics):
@@ -571,12 +590,16 @@ class ContinualModel(BaseModel):
         if metrics["test_A_rot_acc"] > r and metrics["test_B_rot_acc"] > r:
             self.__should_compute_depth = True
             print("\n\n>> Start depth <<\n")
+            if self.exp:
+                self.exp.log_parameter("schedule_start_depth", self.total_iters)
 
         d = self.opt.d_loss_threshold
         if metrics["test_A_loss_d"] < d and metrics["test_B_loss_d"] < d:
             self.__should_compute_identity = True
             self.__should_compute_translation = True
             print("\n\n>> Start translation <<\n")
+            if self.exp:
+                self.exp.log_parameter("schedule_start_translation", self.total_iters)
 
     def representational_schedule(self, metrics):
         r = self.opt.r_acc_threshold
@@ -592,6 +615,9 @@ class ContinualModel(BaseModel):
             and metrics["test_loss_idt_B"] < i
         ):
             print("\n\n>> Start translation <<\n")
+            if self.exp:
+                self.exp.log_parameter("schedule_start_translation", self.total_iters)
+                self.exp.log_parameter("schedule_stop_representation", self.total_iters)
             self.__should_compute_translation = True
             self.__should_compute_identity = True
             self.__should_compute_rotation = False
@@ -658,6 +684,12 @@ class ContinualModel(BaseModel):
 
         else:
             raise ValueError("Unknown schedule {}".format(self.opt.task_schedule))
+
+    def no_grad(self, has_D=False):
+        models = [self.netG_A, self.netG_B]
+        if has_D:
+            models += [self.netD_A, self.netD_B]
+        self.set_requires_grad(models, False)
 
     def optimize_parameters(self):
         """Calculate losses, gradients, and update network weights;

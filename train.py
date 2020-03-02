@@ -48,6 +48,7 @@ if __name__ == "__main__":
         exp.add_tag(opt.task_schedule)
 
     model = create_model(opt)  # create a model given opt.model and other options
+    model.exp = exp
     model.setup(opt)  # regular setup: load and print networks; create schedulers
     # create a visualizer that display/save images and plots
     total_iters = 0  # the total number of training iterations
@@ -67,7 +68,7 @@ if __name__ == "__main__":
             total_iters += opt.batch_size
             epoch_iter += opt.batch_size
             repr_freeze = getattr(model, "repr_is_frozen", False)
-
+            model.total_iters = total_iters
             model.set_input(data)  # unpack data from dataset and apply preprocessing
             model.optimize_parameters()  # calculate loss functions, get gradients, update network weights
 

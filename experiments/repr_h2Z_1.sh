@@ -33,24 +33,25 @@ unzip $SLURM_TMPDIR/$continual_dataset.zip -d $SLURM_TMPDIR > /dev/null
 python train.py \
     --git_hash="446464c72b52c77f0f24902436ccc030f903913c" \
     --dataroot $SLURM_TMPDIR/$continual_dataset \
-    --name "repr_continual_0" \
+    --name "repr_continual_1" \
     --model continual \
     --checkpoints_dir "/scratch/vsch/continual/checkpoints" \
     --display_freq 5000 \
     --batch_size 4 \
     --netG "continual" \
     --task_schedule "representational" \
-    --message "repr h2z exp lambda R = D = I | repr_h2z_0" \
+    --message "repr h2z exp lambda R = D = I / 2 & lr=0.0005| repr_h2z_1" \
     --lambda_A 10 \
     --lambda_B 10 \
     --lambda_I 0.5 \
-    --lambda_R 5 \
-    --lambda_D 5 \
+    --lambda_R 2.5 \
+    --lambda_D 2.5 \
     --d_loss_threshold 0.05 \
     --r_acc_threshold 0.85 \
     --i_loss_threshold 0.5 \
     --lr_rot 0.001 \
     --lr_depth 0.001 \
+    --lr 0.0005 \
     --n_epochs_decay 200 \
     --n_epochs 200
 
