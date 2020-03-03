@@ -100,6 +100,12 @@ class ContinualModel(BaseModel):
                 help="minimal depth estimation loss to switch task",
             )
             parser.add_argument(
+                "--g_loss_threshold",
+                type=float,
+                default=0.5,
+                help="minimal gray loss to switch task",
+            )
+            parser.add_argument(
                 "--i_loss_threshold",
                 type=float,
                 default=0.5,
@@ -271,6 +277,10 @@ class ContinualModel(BaseModel):
                     self.netG_A.module.depth.parameters(),
                     self.netG_B.module.depth.parameters(),
                 )
+                gray_params = itertools.chain(
+                    self.netG_A.module.gray.parameters(),
+                    self.netG_B.module.gray.parameters(),
+                )
                 rot_params = itertools.chain(
                     self.netG_A.module.rotation.parameters(),
                     self.netG_B.module.rotation.parameters(),
@@ -285,6 +295,9 @@ class ContinualModel(BaseModel):
                 depth_params = itertools.chain(
                     self.netG_A.depth.parameters(), self.netG_B.depth.parameters(),
                 )
+                gray_params = itertools.chain(
+                    self.netG_A.gray.parameters(), self.netG_B.gray.parameters(),
+                )
                 rot_params = itertools.chain(
                     self.netG_A.rotation.parameters(), self.netG_B.rotation.parameters()
                 )
@@ -294,6 +307,7 @@ class ContinualModel(BaseModel):
                     {"params": params},
                     {"params": rot_params, "lr": opt.lr_rot},
                     {"params": depth_params, "lr": opt.lr_depth},
+                    {"params": gray_params, "lr": opt.lr_gray},
                 ],
                 lr=opt.lr,
                 betas=(opt.beta1, 0.999),
