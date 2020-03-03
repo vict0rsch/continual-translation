@@ -299,6 +299,8 @@ class _ToTensor:
                 )
             else:
                 dic.update({k: self.to_tensor(v)})
+                if k.startswith("g"):
+                    dic.update({k: torch.cat([dic[k] for _ in range(3)], dim=0)})
         keys = list(dic.keys())
         for k in keys:
             if len(k) > 2 and k.startswith("r"):

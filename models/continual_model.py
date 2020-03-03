@@ -157,6 +157,8 @@ class ContinualModel(BaseModel):
             "G_A_d",
             "G_B_r",
             "G_B_d",
+            "G_gA",
+            "G_gB"
         ]
         # specify the images you want to save/display. The training/test scripts
         # will call <BaseModel.get_current_visuals>
@@ -393,10 +395,10 @@ class ContinualModel(BaseModel):
             # --------------------
             self.z_A = self.netG_A.module.encoder(self.real_A)
             self.z_B = self.netG_B.module.encoder(self.real_B)
-            self.z_rA = self.netG_A.module.encoder(self.rot_A)
-            self.z_rB = self.netG_B.module.encoder(self.rot_B)
 
             if should["rotation"]:
+                self.z_rA = self.netG_A.module.encoder(self.rot_A)
+                self.z_rB = self.netG_B.module.encoder(self.rot_B)
                 self.angle_A_pred = self.netG_A.module.rotation(self.z_rA)
                 self.angle_B_pred = self.netG_B.module.rotation(self.z_rB)
 
@@ -409,8 +411,10 @@ class ContinualModel(BaseModel):
                 self.idt_B = self.netG_B.module.decoder(self.z_A)
 
             if should["gray"]:
-                self.fake_gA = self.netG_A.module.gray(self.z_A)
-                self.fake_gB = self.netG_B.module.gray(self.z_B)
+                self.z_gA = self.netG_A.module.encoder(self.gA)
+                self.z_gB = self.netG_B.module.encoder(self.gB)
+                self.fake_gA = self.netG_A.module.gray(self.z_gA)
+                self.fake_gB = self.netG_B.module.gray(self.z_gB)
 
             if should["translation"]:
                 self.fake_B = self.netG_A.module.decoder(self.z_A)  # G_A(A)
@@ -426,10 +430,10 @@ class ContinualModel(BaseModel):
             # --------------------
             self.z_A = self.netG_A.encoder(self.real_A)
             self.z_B = self.netG_B.encoder(self.real_B)
-            self.z_rA = self.netG_A.encoder(self.rot_A)
-            self.z_rB = self.netG_B.encoder(self.rot_B)
 
             if should["rotation"]:
+                self.z_rA = self.netG_A.encoder(self.rot_A)
+                self.z_rB = self.netG_B.encoder(self.rot_B)
                 self.angle_A_pred = self.netG_A.rotation(self.z_rA)
                 self.angle_B_pred = self.netG_B.rotation(self.z_rB)
 
@@ -442,8 +446,10 @@ class ContinualModel(BaseModel):
                 self.idt_B = self.netG_B.decoder(self.z_A)
 
             if should["gray"]:
-                self.fake_gA = self.netG_A.gray(self.z_A)
-                self.fake_gB = self.netG_B.gray(self.z_B)
+                self.z_gA = self.netG_A.encoder(self.gA)
+                self.z_gB = self.netG_B.encoder(self.gB)
+                self.fake_gA = self.netG_A.gray(self.z_gA)
+                self.fake_gB = self.netG_B.gray(self.z_gB)
 
             if should["translation"]:
                 self.fake_B = self.netG_A.decoder(self.z_A)  # G_A(A)
