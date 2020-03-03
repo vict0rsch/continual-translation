@@ -25,6 +25,7 @@ from copy import copy
 from eval import eval
 from pathlib import Path
 import os
+from collections import deque
 
 if __name__ == "__main__":
     opt = TrainOptions().parse()  # get training options
@@ -53,6 +54,10 @@ if __name__ == "__main__":
     # create a visualizer that display/save images and plots
     total_iters = 0  # the total number of training iterations
     print("starting")
+
+    iter_times = deque(maxlen=15)
+    iter_times.append(1)
+
     for epoch in range(opt.epoch_count, opt.n_epochs + opt.n_epochs_decay + 1):
         # outer loop for different epochs; we save the model by <epoch_count>,
         # <epoch_count>+<save_latest_freq>
@@ -72,6 +77,7 @@ if __name__ == "__main__":
             model.set_input(data)  # unpack data from dataset and apply preprocessing
             model.optimize_parameters()  # calculate loss functions, get gradients, update network weights
 
+            iter_times.append((time.time() - iter_start_time) / opt.batch_size)
             # ------------------------
             # -----  Validation  -----
             # ------------------------
@@ -87,6 +93,7 @@ if __name__ == "__main__":
                 losses = model.get_current_losses()
                 t_comp = (time.time() - iter_start_time) / opt.batch_size
                 exp.log_metrics(losses, step=total_iters)
+                exp.log_metric("sample_time", np.mean(iter_times))
 
             if total_iters % opt.save_latest_freq == 0:
                 # cache our latest model every <save_latest_freq> iterations
@@ -97,7 +104,12 @@ if __name__ == "__main__":
                 save_suffix = "iter_%d" % total_iters if opt.save_by_iter else "latest"
                 model.save_networks(save_suffix)
             if i % 50 == 0:
-                print("Iter {} ({})\r".format(i, total_iters), end="")
+                print(
+                    "Iter {} ({}) | {:.2f}\r".format(
+                        i, total_iters, np.mean(iter_times)
+                    ),
+                    end="",
+                )
 
             iter_data_time = time.time()
         if epoch % opt.save_epoch_freq == 0:

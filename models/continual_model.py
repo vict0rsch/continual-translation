@@ -478,7 +478,7 @@ class ContinualModel(BaseModel):
 
     def backward_D_gA(self):
         """Calculate GAN loss for discriminator D_A"""
-        self.loss_D_A = self.backward_D_basic(self.netD_gA, self.gA, self.fake_gA)
+        self.loss_D_A = self.backward_D_basic(self.netD_gA, self.real_A, self.fake_gA)
 
     def backward_D_B(self):
         """Calculate GAN loss for discriminator D_B"""
@@ -487,7 +487,7 @@ class ContinualModel(BaseModel):
 
     def backward_D_gB(self):
         """Calculate GAN loss for discriminator D_A"""
-        self.loss_D_gB = self.backward_D_basic(self.netD_gB, self.gB, self.fake_gB)
+        self.loss_D_gB = self.backward_D_basic(self.netD_gB, self.real_B, self.fake_gB)
 
     def should_compute(self, arg):
         if arg == "rotation":
