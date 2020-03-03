@@ -323,7 +323,7 @@ class ContinualModel(BaseModel):
                 betas=(opt.beta1, 0.999),
             )
             self.optimizers.append(self.optimizer_G)
-            self.optimizers.append(self.optimizer_D
+            self.optimizers.append(self.optimizer_D)
         self.init_schedule()
 
     def get_state_dict(self):

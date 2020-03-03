@@ -32,7 +32,7 @@ unzip $SLURM_TMPDIR/$continual_dataset.zip -d $SLURM_TMPDIR > /dev/null
 #    and look for the dataset into $SLURM_TMPDIR
 python train.py \
     --sbatch_file=$0 \
-    --git_hash="e1c09637b894b496a89097f7c5c4e7f5f81e0964" \
+    --git_hash="abedac4a7327879ffef8e4f0ce1a2f141a9dd10d" \
     --dataroot $SLURM_TMPDIR/$continual_dataset \
     --name "par_continual_3" \
     --model continual \
