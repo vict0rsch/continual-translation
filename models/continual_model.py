@@ -496,6 +496,8 @@ class ContinualModel(BaseModel):
             return self.__should_compute_identity
         elif arg == "translation":
             return self.__should_compute_translation
+        elif arg == "gray":
+            return self.__should_compute_gray
         raise ValueError(f"Unknown arg {arg}")
 
     def update_visuals(self):
