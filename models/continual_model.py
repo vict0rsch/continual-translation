@@ -323,7 +323,7 @@ class ContinualModel(BaseModel):
                 betas=(opt.beta1, 0.999),
             )
             self.optimizers.append(self.optimizer_G)
-            self.optimizers.append(self.optimizer_D)
+            self.optimizers.append(self.optimizer_D
         self.init_schedule()
 
     def get_state_dict(self):
@@ -344,6 +344,7 @@ class ContinualModel(BaseModel):
         AtoB = self.opt.direction == "AtoB"
         self.real_A = input["A" if AtoB else "B"].to(self.device)
         self.depth_A = input["dA" if AtoB else "dB"].to(self.device).float()
+        self.gA = input["gA" if AtoB else "gB"].to(self.device).float()
         self.rot_A = (
             input["rA" if AtoB else "rB"]
             .to(self.device)
@@ -354,6 +355,7 @@ class ContinualModel(BaseModel):
 
         self.real_B = input["B" if AtoB else "A"].to(self.device)
         self.depth_B = input["dB" if AtoB else "dA"].to(self.device).float()
+        self.gB = input["gB" if AtoB else "gA"].to(self.device).float()
         self.rot_B = (
             input["rB" if AtoB else "rA"]
             .to(self.device)
