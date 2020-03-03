@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.nn import init
 import functools
 from torch.optim import lr_scheduler
-
+from copy import deepcopy
 
 ###############################################################################
 # Helper Functions
@@ -19,8 +19,11 @@ def get_norm_layer(norm_type="instance"):
     """Return a normalization layer
     Parameters:
         norm_type (str) -- the name of the normalization layer: batch | instance | none
-    For BatchNorm, we use learnable affine parameters and track running statistics (mean/stddev).
-    For InstanceNorm, we do not use learnable affine parameters. We do not track running statistics.
+
+    For BatchNorm, we use learnable affine parameters and track running statistics
+        (mean/stddev).
+    For InstanceNorm, we do not use learnable affine parameters.
+        We do not track running statistics.
     """
     if norm_type == "batch":
         norm_layer = functools.partial(
@@ -44,11 +47,14 @@ def get_scheduler(optimizer, opt):
     """Return a learning rate scheduler
     Parameters:
         optimizer          -- the optimizer of the network
-        opt (option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions．　
-                              opt.lr_policy is the name of learning rate policy: linear | step | plateau | cosine
+        opt (option class) -- stores all the experiment flags; needs to be a subclass
+             of BaseOptions．　
+                              opt.lr_policy is the name of learning rate policy:
+                                linear | step | plateau | cosine
     For 'linear', we keep the same learning rate for the first <opt.n_epochs> epochs
     and linearly decay the rate to zero over the next <opt.n_epochs_decay> epochs.
-    For other schedulers (step, plateau, and cosine), we use the default PyTorch schedulers.
+    For other schedulers (step, plateau, and cosine),
+        we use the default PyTorch schedulers.
     See https://pytorch.org/docs/stable/optim.html for more details.
     """
     if opt.lr_policy == "linear":
@@ -83,10 +89,12 @@ def init_weights(net, init_type="normal", init_gain=0.02):
     """Initialize network weights.
     Parameters:
         net (network)   -- network to be initialized
-        init_type (str) -- the name of an initialization method: normal | xavier | kaiming | orthogonal
+        init_type (str) -- the name of an initialization method:
+            normal | xavier | kaiming | orthogonal
         init_gain (float)    -- scaling factor for normal, xavier and orthogonal.
-    We use 'normal' in the original pix2pix and CycleGAN paper. But xavier and kaiming might
-    work better for some applications. Feel free to try yourself.
+    We use 'normal' in the original pix2pix and CycleGAN paper.
+        But xavier and kaiming might
+        work better for some applications. Feel free to try yourself.
     """
 
     def init_func(m):  # define the initialization function
@@ -108,9 +116,9 @@ def init_weights(net, init_type="normal", init_gain=0.02):
                 )
             if hasattr(m, "bias") and m.bias is not None:
                 init.constant_(m.bias.data, 0.0)
-        elif (
-            classname.find("BatchNorm2d") != -1
-        ):  # BatchNorm Layer's weight is not a matrix; only normal distribution applies.
+        elif classname.find("BatchNorm2d") != -1:
+            # BatchNorm Layer's weight is not a matrix;
+            # only normal distribution applies.
             init.normal_(m.weight.data, 1.0, init_gain)
             init.constant_(m.bias.data, 0.0)
 
@@ -119,10 +127,12 @@ def init_weights(net, init_type="normal", init_gain=0.02):
 
 
 def init_net(net, init_type="normal", init_gain=0.02, gpu_ids=[]):
-    """Initialize a network: 1. register CPU/GPU device (with multi-GPU support); 2. initialize the network weights
+    """Initialize a network: 1. register CPU/GPU device (with multi-GPU support);
+        2. initialize the network weights
     Parameters:
         net (network)      -- the network to be initialized
-        init_type (str)    -- the name of an initialization method: normal | xavier | kaiming | orthogonal
+        init_type (str)    -- the name of an initialization method:
+            normal | xavier | kaiming | orthogonal
         gain (float)       -- scaling factor for normal, xavier and orthogonal.
         gpu_ids (int list) -- which GPUs the network runs on: e.g., 0,1,2
     Return an initialized network.
@@ -151,19 +161,25 @@ def define_G(
         input_nc (int) -- the number of channels in input images
         output_nc (int) -- the number of channels in output images
         ngf (int) -- the number of filters in the last conv layer
-        netG (str) -- the architecture's name: resnet_9blocks | resnet_6blocks | unet_256 | unet_128
-        norm (str) -- the name of normalization layers used in the network: batch | instance | none
+        netG (str) -- the architecture's name:
+            resnet_9blocks | resnet_6blocks | unet_256 | unet_128
+        norm (str) -- the name of normalization layers used in the network:
+            batch | instance | none
         use_dropout (bool) -- if use dropout layers.
         init_type (str)    -- the name of our initialization method.
         init_gain (float)  -- scaling factor for normal, xavier and orthogonal.
         gpu_ids (int list) -- which GPUs the network runs on: e.g., 0,1,2
     Returns a generator
     Our current implementation provides two types of generators:
-        U-Net: [unet_128] (for 128x128 input images) and [unet_256] (for 256x256 input images)
+        U-Net: [unet_128] (for 128x128 input images) and [unet_256]
+            (for 256x256 input images)
         The original U-Net paper: https://arxiv.org/abs/1505.04597
-        Resnet-based generator: [resnet_6blocks] (with 6 Resnet blocks) and [resnet_9blocks] (with 9 Resnet blocks)
-        Resnet-based generator consists of several Resnet blocks between a few downsampling/upsampling operations.
-        We adapt Torch code from Justin Johnson's neural style transfer project (https://github.com/jcjohnson/fast-neural-style).
+        Resnet-based generator: [resnet_6blocks] (with 6 Resnet blocks) and
+            [resnet_9blocks] (with 9 Resnet blocks)
+        Resnet-based generator consists of several Resnet blocks between a few
+            downsampling/upsampling operations.
+        We adapt Torch code from Justin Johnson's neural style transfer project
+        (https://github.com/jcjohnson/fast-neural-style).
     The generator has been initialized by <init_net>. It uses RELU for non-linearity.
     """
     net = None
@@ -224,7 +240,8 @@ def define_D(
         input_nc (int)     -- the number of channels in input images
         ndf (int)          -- the number of filters in the first conv layer
         netD (str)         -- the architecture's name: basic | n_layers | pixel
-        n_layers_D (int)   -- the number of conv layers in the discriminator; effective when netD=='n_layers'
+        n_layers_D (int)   -- the number of conv layers in the discriminator;
+            effective when netD=='n_layers'
         norm (str)         -- the type of normalization layers used in the network.
         init_type (str)    -- the name of the initialization method.
         init_gain (float)  -- scaling factor for normal, xavier and orthogonal.
@@ -236,11 +253,13 @@ def define_D(
         Such a patch-level discriminator architecture has fewer parameters
         than a full-image discriminator and can work on arbitrarily-sized images
         in a fully convolutional fashion.
-        [n_layers]: With this mode, you can specify the number of conv layers in the discriminator
+        [n_layers]: With this mode, you can specify the number of conv layers
+            in the discriminator
         with the parameter <n_layers_D> (default=3 as used in [basic] (PatchGAN).)
         [pixel]: 1x1 PixelGAN discriminator can classify whether a pixel is real or not.
         It encourages greater color diversity but has no effect on spatial statistics.
-    The discriminator has been initialized by <init_net>. It uses Leakly RELU for non-linearity.
+    The discriminator has been initialized by <init_net>.
+        It uses Leaky RELU for non-linearity.
     """
     net = None
     norm_layer = get_norm_layer(norm_type=norm)
@@ -270,7 +289,8 @@ class GANLoss(nn.Module):
     def __init__(self, gan_mode, target_real_label=1.0, target_fake_label=0.0):
         """ Initialize the GANLoss class.
         Parameters:
-            gan_mode (str) - - the type of GAN objective. It currently supports vanilla, lsgan, and wgangp.
+            gan_mode (str) - - the type of GAN objective.
+                It currently supports vanilla, lsgan, and wgangp.
             target_real_label (bool) - - label for a real image
             target_fake_label (bool) - - label of a fake image
         Note: Do not use sigmoid as the last layer of Discriminator.
@@ -292,10 +312,12 @@ class GANLoss(nn.Module):
     def get_target_tensor(self, prediction, target_is_real):
         """Create label tensors with the same size as the input.
         Parameters:
-            prediction (tensor) - - tpyically the prediction from a discriminator
-            target_is_real (bool) - - if the ground truth label is for real images or fake images
+            prediction (tensor) - - typically the prediction from a discriminator
+            target_is_real (bool) - - if the ground truth label is for real images
+                or fake images
         Returns:
-            A label tensor filled with ground truth label, and with the size of the input
+            A label tensor filled with ground truth label, and with the size of
+                the input
         """
 
         if target_is_real:
@@ -305,10 +327,11 @@ class GANLoss(nn.Module):
         return target_tensor.expand_as(prediction)
 
     def __call__(self, prediction, target_is_real):
-        """Calculate loss given Discriminator's output and grount truth labels.
+        """Calculate loss given Discriminator's output and ground truth labels.
         Parameters:
-            prediction (tensor) - - tpyically the prediction output from a discriminator
-            target_is_real (bool) - - if the ground truth label is for real images or fake images
+            prediction (tensor) - - typically the prediction output from a discriminator
+            target_is_real (bool) - - if the ground truth label is for real
+                images or fake images
         Returns:
             the calculated loss.
         """
@@ -326,14 +349,19 @@ class GANLoss(nn.Module):
 def cal_gradient_penalty(
     netD, real_data, fake_data, device, type="mixed", constant=1.0, lambda_gp=10.0
 ):
-    """Calculate the gradient penalty loss, used in WGAN-GP paper https://arxiv.org/abs/1704.00028
+    """Calculate the gradient penalty loss, used in WGAN-GP paper
+    https://arxiv.org/abs/1704.00028
     Arguments:
         netD (network)              -- discriminator network
         real_data (tensor array)    -- real images
         fake_data (tensor array)    -- generated images from the generator
-        device (str)                -- GPU / CPU: from torch.device('cuda:{}'.format(self.gpu_ids[0])) if self.gpu_ids else torch.device('cpu')
-        type (str)                  -- if we mix real and fake data or not [real | fake | mixed].
-        constant (float)            -- the constant used in formula ( | |gradient||_2 - constant)^2
+        device (str)                -- GPU / CPU: from
+            torch.device('cuda:{}'.format(self.gpu_ids[0]))
+            if self.gpu_ids else torch.device('cpu')
+        type (str)                  -- if we mix real and fake data or not
+             [real | fake | mixed].
+        constant (float)            -- the constant used in formula
+            ( | |gradient||_2 - constant)^2
         lambda_gp (float)           -- weight for this loss
     Returns the gradient penalty loss
     """
@@ -341,9 +369,9 @@ def cal_gradient_penalty(
         if (
             type == "real"
         ):  # either use real images, fake images, or a linear interpolation of two.
-            interpolatesv = real_data
+            interpolates = real_data
         elif type == "fake":
-            interpolatesv = fake_data
+            interpolates = fake_data
         elif type == "mixed":
             alpha = torch.rand(real_data.shape[0], 1, device=device)
             alpha = (
@@ -353,14 +381,14 @@ def cal_gradient_penalty(
                 .contiguous()
                 .view(*real_data.shape)
             )
-            interpolatesv = alpha * real_data + ((1 - alpha) * fake_data)
+            interpolates = alpha * real_data + ((1 - alpha) * fake_data)
         else:
             raise NotImplementedError("{} not implemented".format(type))
-        interpolatesv.requires_grad_(True)
-        disc_interpolates = netD(interpolatesv)
+        interpolates.requires_grad_(True)
+        disc_interpolates = netD(interpolates)
         gradients = torch.autograd.grad(
             outputs=disc_interpolates,
-            inputs=interpolatesv,
+            inputs=interpolates,
             grad_outputs=torch.ones(disc_interpolates.size()).to(device),
             create_graph=True,
             retain_graph=True,
@@ -376,8 +404,10 @@ def cal_gradient_penalty(
 
 
 class ResnetGenerator(nn.Module):
-    """Resnet-based generator that consists of Resnet blocks between a few downsampling/upsampling operations.
-    We adapt Torch code and idea from Justin Johnson's neural style transfer project(https://github.com/jcjohnson/fast-neural-style)
+    """Resnet-based generator that consists of Resnet blocks between a few
+    downsampling/upsampling operations. We adapt Torch code and idea from
+    Justin Johnson's neural style transfer project
+    (https://github.com/jcjohnson/fast-neural-style)
     """
 
     def __init__(
@@ -398,7 +428,8 @@ class ResnetGenerator(nn.Module):
             norm_layer          -- normalization layer
             use_dropout (bool)  -- if use dropout layers
             n_blocks (int)      -- the number of ResNet blocks
-            padding_type (str)  -- the name of padding layer in conv layers: reflect | replicate | zero
+            padding_type (str)  -- the name of padding layer in conv layers:
+                reflect | replicate | zero
         """
         assert n_blocks >= 0
         super(ResnetGenerator, self).__init__()
@@ -492,7 +523,8 @@ class ResnetBlock(nn.Module):
             norm_layer          -- normalization layer
             use_dropout (bool)  -- if use dropout layers.
             use_bias (bool)     -- if the conv layer uses bias or not
-        Returns a conv block (with a conv layer, a normalization layer, and a non-linearity layer (ReLU))
+        Returns a conv block
+        (with a conv layer, a normalization layer, and a non-linearity layer (ReLU))
         """
         conv_block = []
         p = 0
@@ -551,8 +583,9 @@ class UnetGenerator(nn.Module):
         Parameters:
             input_nc (int)  -- the number of channels in input images
             output_nc (int) -- the number of channels in output images
-            num_downs (int) -- the number of downsamplings in UNet. For example, # if |num_downs| == 7,
-                                image of size 128x128 will become of size 1x1 # at the bottleneck
+            num_downs (int) -- the number of downsamplings in UNet. For example,
+                # if |num_downs| == 7, image of size 128x128 will become of size 1x1
+                #  at the bottleneck
             ngf (int)       -- the number of filters in the last conv layer
             norm_layer      -- normalization layer
         We construct the U-Net from the innermost layer to the outermost layer.
@@ -788,10 +821,6 @@ class PixelDiscriminator(nn.Module):
 
 
 class ContinualGenerator(nn.Module):
-    """Resnet-based generator that consists of Resnet blocks between a few downsampling/upsampling operations.
-    We adapt Torch code and idea from Justin Johnson's neural style transfer project(https://github.com/jcjohnson/fast-neural-style)
-    """
-
     def __init__(
         self,
         input_nc=3,
@@ -810,7 +839,8 @@ class ContinualGenerator(nn.Module):
             norm_layer          -- normalization layer
             use_dropout (bool)  -- if use dropout layers
             n_blocks (int)      -- the number of ResNet blocks
-            padding_type (str)  -- the name of padding layer in conv layers: reflect | replicate | zero
+            padding_type (str)  -- the name of padding layer in conv layers:
+                reflect | replicate | zero
         """
         assert n_blocks >= 0
         assert n_blocks % 2 == 0
@@ -820,46 +850,26 @@ class ContinualGenerator(nn.Module):
         else:
             use_bias = norm_layer == nn.InstanceNorm2d
 
-        encoder = [
-            nn.ReflectionPad2d(3),
-            nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0, bias=use_bias),
-            norm_layer(ngf),
-            nn.ReLU(True),
-        ]
+        self.input_nc = input_nc
+        self.output_nc = output_nc
+        self.ngf = ngf
+        self.norm_layer = norm_layer
+        self.use_dropout = use_dropout
+        self.n_blocks = n_blocks
+        self.padding_type = padding_type
 
         n_downsampling = 2
-        for i in range(n_downsampling):  # add downsampling layers
-            mult = 2 ** i
-            encoder += [
-                nn.Conv2d(
-                    ngf * mult,
-                    ngf * mult * 2,
-                    kernel_size=3,
-                    stride=2,
-                    padding=1,
-                    bias=use_bias,
-                ),
-                norm_layer(ngf * mult * 2),
-                nn.ReLU(True),
-            ]
+        self.encoder = Encoder(
+            input_nc, output_nc, ngf, norm_layer, use_dropout, n_blocks, padding_type,
+        )
 
         mult = 2 ** n_downsampling
-        for i in range(n_blocks // 2):  # add ResNet blocks
-
-            encoder += [
-                ResnetBlock(
-                    ngf * mult,
-                    padding_type=padding_type,
-                    norm_layer=norm_layer,
-                    use_dropout=use_dropout,
-                    use_bias=use_bias,
-                )
-            ]
 
         decoder = []
         depth = []
+        gray = []
         for i in range(n_blocks // 2):  # add ResNet blocks
-            decoder += [
+            block = [
                 ResnetBlock(
                     ngf * mult,
                     padding_type=padding_type,
@@ -868,28 +878,13 @@ class ContinualGenerator(nn.Module):
                     use_bias=use_bias,
                 )
             ]
-            depth += [
-                ResnetBlock(
-                    ngf * mult,
-                    padding_type=padding_type,
-                    norm_layer=norm_layer,
-                    use_dropout=use_dropout,
-                    use_bias=use_bias,
-                )
-            ]
-            # rotation += [
-            #     ResnetBlock(
-            #         ngf * mult,
-            #         padding_type=padding_type,
-            #         norm_layer=norm_layer,
-            #         use_dropout=use_dropout,
-            #         use_bias=use_bias,
-            #     )
-            # ]
+            decoder += deepcopy(block)
+            depth += deepcopy(block)
+            gray += deepcopy(block)
 
         for i in range(n_downsampling):  # add upsampling layers
             mult = 2 ** (n_downsampling - i)
-            decoder += [
+            block = [
                 nn.ConvTranspose2d(
                     ngf * mult,
                     int(ngf * mult / 2),
@@ -902,25 +897,22 @@ class ContinualGenerator(nn.Module):
                 norm_layer(int(ngf * mult / 2)),
                 nn.ReLU(True),
             ]
-            depth += [
-                nn.ConvTranspose2d(
-                    ngf * mult,
-                    int(ngf * mult / 2),
-                    kernel_size=3,
-                    stride=2,
-                    padding=1,
-                    output_padding=1,
-                    bias=use_bias,
-                ),
-                norm_layer(int(ngf * mult / 2)),
-                nn.ReLU(True),
-            ]
+            decoder += deepcopy(block)
+            depth += deepcopy(block)
+            gray += deepcopy(block)
+
         mult = 2 ** n_downsampling
+
         decoder += [nn.ReflectionPad2d(3)]
         depth += [nn.ReflectionPad2d(3)]
+        gray += [nn.ReflectionPad2d(3)]
+
         decoder += [nn.Conv2d(ngf, 3, kernel_size=7, padding=0)]
+        gray += [nn.Conv2d(ngf, 3, kernel_size=7, padding=0)]
         depth += [nn.Conv2d(ngf, 1, kernel_size=7, padding=0)]
+
         decoder += [nn.Tanh()]
+        gray += [nn.Tanh()]
 
         rotation = []
         # 256 * 64 * 64
@@ -951,14 +943,25 @@ class ContinualGenerator(nn.Module):
         rotation += [FCView()]
         rotation += [nn.Linear(256 * 4 * 4, 4)]
 
-        self.encoder = nn.Sequential(*encoder)
         self.decoder = nn.Sequential(*decoder)
         self.depth = nn.Sequential(*depth)
         self.rotation = nn.Sequential(*rotation)
+        self.gray = nn.Sequential(*gray)
 
     def forward(self, input):
         """Standard forward"""
         return self.decoder(self.encoder(input))
+
+    def get_encoder(self):
+        return Encoder(
+            self.input_nc,
+            self.output_nc,
+            self.ngf,
+            self.norm_layer,
+            self.use_dropout,
+            self.n_blocks,
+            self.padding_type,
+        )
 
 
 class FCView(nn.Module):
@@ -973,3 +976,59 @@ class FCView(nn.Module):
 
     def __repr__(self):
         return "view(nB, -1)"
+
+
+class Encoder(nn.Module):
+    def __init__(
+        self,
+        input_nc=3,
+        output_nc=3,
+        ngf=64,
+        norm_layer=nn.BatchNorm2d,
+        use_dropout=False,
+        n_blocks=6,
+        padding_type="reflect",
+    ):
+        super().__init__()
+        if type(norm_layer) == functools.partial:
+            use_bias = norm_layer.func == nn.InstanceNorm2d
+        else:
+            use_bias = norm_layer == nn.InstanceNorm2d
+        self.model = [
+            nn.ReflectionPad2d(3),
+            nn.Conv2d(input_nc, ngf, kernel_size=7, padding=0, bias=use_bias),
+            norm_layer(ngf),
+            nn.ReLU(True),
+        ]
+        n_downsampling = 2
+        for i in range(n_downsampling):  # add downsampling layers
+            mult = 2 ** i
+            self.model += [
+                nn.Conv2d(
+                    ngf * mult,
+                    ngf * mult * 2,
+                    kernel_size=3,
+                    stride=2,
+                    padding=1,
+                    bias=use_bias,
+                ),
+                norm_layer(ngf * mult * 2),
+                nn.ReLU(True),
+            ]
+
+        mult = 2 ** n_downsampling
+        for i in range(n_blocks // 2):  # add ResNet blocks
+
+            self.model += [
+                ResnetBlock(
+                    ngf * mult,
+                    padding_type=padding_type,
+                    norm_layer=norm_layer,
+                    use_dropout=use_dropout,
+                    use_bias=use_bias,
+                )
+            ]
+        self.model = nn.Sequential(*self.model)
+
+    def forward(self, x):
+        return self.model(x)

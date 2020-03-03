@@ -15,6 +15,7 @@
              display_port: 8097                          
            display_server: http://localhost              
           display_winsize: 256                           
+      encoder_merge_ratio: 1.0                           
                     epoch: latest                        
               epoch_count: 1                             
                  gan_mode: lsgan                         
@@ -27,6 +28,7 @@
                  lambda_A: 10.0                          
                  lambda_B: 10.0                          
                  lambda_D: 1.0                           
+                 lambda_G: 1.0                           
                  lambda_I: 0.5                           
                  lambda_R: 1.0                           
                 load_iter: 0                             	[default: 0]
@@ -34,6 +36,7 @@
                        lr: 0.0002                        
            lr_decay_iters: 50                            
                  lr_depth: 0.0002                        
+                  lr_gray: 0.0002                        
                 lr_policy: linear                        
                    lr_rot: 0.0002                        
          max_dataset_size: inf                           

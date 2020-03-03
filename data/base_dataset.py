@@ -85,6 +85,16 @@ class _Resize:
         return dic
 
 
+class _GrayScale:
+    def __init__(self):
+        super().__init__()
+        self.transform = transforms.Grayscale(num_output_channels=1)
+
+    def __call__(self, dic):
+        dic.update({k: self.transform(v) for k, v in dic.items() if k.startswith("g")})
+        return dic
+
+
 class _ScaleWidth:
     def __init__(self, load_size, method):
         super().__init__()
@@ -223,17 +233,18 @@ class _Rotate:
 
 
 class _Normalize:
-    def __init__(self, grayscale):
+    def __init__(self):
         super().__init__()
         params = {
-            "img": {
-                "mean": (0.5,) if grayscale else (0.5, 0.5, 0.5),
-                "std": (0.5,) if grayscale else (0.5, 0.5, 0.5),
-            },
+            "img": {"mean": (0.5, 0.5, 0.5), "std": (0.5, 0.5, 0.5),},
+            "img_gray": {"mean": (0.5,), "std": (0.5,)},
             "depth": {"mean": (2,), "std": (2,)},
         }
         self.transforms = {
             "img": transforms.Normalize(params["img"]["mean"], params["img"]["std"]),
+            "img_gray": transforms.Normalize(
+                params["img_gray"]["mean"], params["img_gray"]["std"]
+            ),
             "depth": transforms.Normalize(
                 params["depth"]["mean"], params["depth"]["std"]
             ),
@@ -243,12 +254,14 @@ class _Normalize:
         for k, v in dic.items():
             if "angle" in k:
                 continue
-            if "d" in k:
+            if k.startswith("d"):
                 dic.update({k: self.transforms["depth"](v)})
-            elif "r" in k:
+            elif k.startswith("r"):
                 means = (0.5,) * len(v)
                 stds = (0.5,) * len(v)
                 dic.update({k: transforms.Normalize(means, stds)(v)})
+            elif k.startswith("g"):
+                dic.update({k: self.transforms["img_gray"](v)})
             else:
                 dic.update({k: self.transforms["img"](v)})
         return dic
@@ -263,12 +276,12 @@ class _ToTensor:
         for k, v in dic.items():
             if "angle" in k:
                 continue
-            elif "d" in k:
+            elif k.startswith("d"):
                 t = torch.tensor(np.array(v))
                 if len(t.shape) == 2:
                     t.unsqueeze_(0)
                 dic.update({k: t})
-            elif "r" in k:
+            elif k.startswith("r"):
                 new_rot = torch.cat(
                     [
                         self.to_tensor(v)
@@ -301,6 +314,7 @@ def get_dic_transform(
     convert=True,
     depth=False,
     rotation=False,
+    gray=False,
 ):
     transform_list = []
     assert not grayscale
@@ -327,10 +341,13 @@ def get_dic_transform(
     if depth:
         transform_list.append(_Depth())
 
+    if gray:
+        transform_list.append(_GrayScale())
+
     if convert:
         transform_list.append(_ToTensor())
 
-    transform_list.append(_Normalize(False))
+    transform_list.append(_Normalize())
 
     return transforms.Compose(transform_list)
 

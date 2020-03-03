@@ -5,6 +5,7 @@ from .base_model import BaseModel
 from . import networks
 from util.util import angles_to_tensors
 import torch.nn as nn
+from copy import copy
 
 
 class ContinualModel(BaseModel):
@@ -60,6 +61,9 @@ class ContinualModel(BaseModel):
                 "--lambda_D", type=float, default=1.0, help="weight for depth",
             )
             parser.add_argument(
+                "--lambda_G", type=float, default=1.0, help="weight for gray",
+            )
+            parser.add_argument(
                 "--lambda_I",
                 type=float,
                 default=0.5,
@@ -112,6 +116,15 @@ class ContinualModel(BaseModel):
                 type=float,
                 default=0.0002,
                 help="minimal identity loss to switch task (representational only)",
+            )
+            parser.add_argument(
+                "--lr_gray", type=float, default=0.0002,
+            )
+            parser.add_argument(
+                "--encoder_merge_ratio",
+                type=float,
+                default=1.0,
+                help="Exp. moving average coefficient: ref = a * new + (1 - a) * old",
             )
 
         return parser
@@ -206,6 +219,26 @@ class ContinualModel(BaseModel):
                 opt.init_gain,
                 self.gpu_ids,
             )
+            self.netD_gA = networks.define_D(
+                opt.output_nc,
+                opt.ndf,
+                opt.netD,
+                opt.n_layers_D,
+                opt.norm,
+                opt.init_type,
+                opt.init_gain,
+                self.gpu_ids,
+            )
+            self.netD_gB = networks.define_D(
+                opt.input_nc,
+                opt.ndf,
+                opt.netD,
+                opt.n_layers_D,
+                opt.norm,
+                opt.init_type,
+                opt.init_gain,
+                self.gpu_ids,
+            )
 
         if self.isTrain:
             if opt.lambda_I > 0.0:
@@ -266,7 +299,12 @@ class ContinualModel(BaseModel):
                 betas=(opt.beta1, 0.999),
             )
             self.optimizer_D = torch.optim.Adam(
-                itertools.chain(self.netD_A.parameters(), self.netD_B.parameters()),
+                itertools.chain(
+                    self.netD_A.parameters(),
+                    self.netD_gA.parameters(),
+                    self.netD_B.parameters(),
+                    self.netD_gB.parameters(),
+                ),
                 lr=opt.lr,
                 betas=(opt.beta1, 0.999),
             )
@@ -318,6 +356,7 @@ class ContinualModel(BaseModel):
         should = {
             "rotation": False,
             "depth": False,
+            "gray": False,
             "identity": False,
             "translation": False,
         }
@@ -353,6 +392,10 @@ class ContinualModel(BaseModel):
                 self.idt_A = self.netG_A.module.decoder(self.z_B)
                 self.idt_B = self.netG_B.module.decoder(self.z_A)
 
+            if should["gray"]:
+                self.fake_gA = self.netG_A.module.gray(self.z_A)
+                self.fake_gB = self.netG_B.module.gray(self.z_B)
+
             if should["translation"]:
                 self.fake_B = self.netG_A.module.decoder(self.z_A)  # G_A(A)
                 self.rec_A = self.netG_B(self.fake_B)  # G_B(G_A(A))
@@ -381,6 +424,10 @@ class ContinualModel(BaseModel):
             if should["identity"]:
                 self.idt_A = self.netG_A.decoder(self.z_B)
                 self.idt_B = self.netG_B.decoder(self.z_A)
+
+            if should["gray"]:
+                self.fake_gA = self.netG_A.gray(self.z_A)
+                self.fake_gB = self.netG_B.gray(self.z_B)
 
             if should["translation"]:
                 self.fake_B = self.netG_A.decoder(self.z_A)  # G_A(A)
@@ -413,10 +460,18 @@ class ContinualModel(BaseModel):
         fake_B = self.fake_B_pool.query(self.fake_B)
         self.loss_D_A = self.backward_D_basic(self.netD_A, self.real_B, fake_B)
 
+    def backward_D_gA(self):
+        """Calculate GAN loss for discriminator D_A"""
+        self.loss_D_A = self.backward_D_basic(self.netD_gA, self.gA, self.fake_gA)
+
     def backward_D_B(self):
         """Calculate GAN loss for discriminator D_B"""
         fake_A = self.fake_A_pool.query(self.fake_A)
         self.loss_D_B = self.backward_D_basic(self.netD_B, self.real_A, fake_A)
+
+    def backward_D_gB(self):
+        """Calculate GAN loss for discriminator D_A"""
+        self.loss_D_gB = self.backward_D_basic(self.netD_gB, self.gB, self.fake_gB)
 
     def should_compute(self, arg):
         if arg == "rotation":
@@ -476,6 +531,7 @@ class ContinualModel(BaseModel):
         lambda_B = self.opt.lambda_B
         lambda_D = self.opt.lambda_D
         lambda_R = self.opt.lambda_R
+        lambda_G = self.opt.lambda_G
 
         lambda_total = 0
 
@@ -483,6 +539,7 @@ class ContinualModel(BaseModel):
         should = {
             "rotation": False,
             "depth": False,
+            "gray": False,
             "identity": False,
             "translation": False,
         }
@@ -537,6 +594,16 @@ class ContinualModel(BaseModel):
             self.loss_G += self.loss_idt_A + self.loss_idt_B
             lambda_total += lambda_A * lambda_idt + lambda_B * lambda_idt
 
+        if should["gray"]:
+            self.loss_G_gA = 0.1 * self.criterionGAN(
+                self.netD_gA(self.fake_gA), True
+            ) + 0.9 * self.criterionIdt(self.fake_gA, self.real_A)
+            self.loss_G_gB = 0.1 * self.criterionGAN(
+                self.netD_gB(self.fake_gB), True
+            ) + 0.9 * self.criterionIdt(self.fake_gB, self.real_B)
+            self.loss_G += (self.loss_G_gA + self.loss_G_gB) * lambda_G
+            lambda_total += 2 * lambda_G
+
         if should["translation"]:
             # print("translation loss")
             # GAN loss D_A(G_A(A))
@@ -576,14 +643,26 @@ class ContinualModel(BaseModel):
             # never check again once we've changed task
             if metrics["test_A_loss_d"] < d and metrics["test_B_loss_d"] < d:
                 self.__should_compute_depth = False
+                self.__should_compute_gray = True
+                print("\n\n>> Stop depth ; Start gray <<\n")
+                if self.exp:
+                    self.exp.log_parameter("schedule_stop_depth", self.total_iters)
+                    self.exp.log_parameter("schedule_start_gray", self.total_iters)
+                return
+
+        g = self.opt.g_loss_threshold
+        if self.__should_compute_gray:
+            # never check again once we've changed task
+            if metrics["test_A_loss_g"] < g and metrics["test_B_loss_g"] < g:
+                self.__should_compute_gray = False
                 self.__should_compute_identity = True
                 self.__should_compute_translation = True
+                print("\n\n>> Stop gray ; Start translation <<\n")
                 if self.exp:
                     self.exp.log_parameter(
                         "schedule_start_translation", self.total_iters
                     )
-                    self.exp.log_parameter("schedule_stop_depth", self.total_iters)
-                print("\n\n>> Stop depth ; Start translation <<\n")
+                    self.exp.log_parameter("schedule_stop_gray", self.total_iters)
 
     def additional_schedule(self, metrics):
         r = self.opt.r_acc_threshold
@@ -592,6 +671,13 @@ class ContinualModel(BaseModel):
             print("\n\n>> Start depth <<\n")
             if self.exp:
                 self.exp.log_parameter("schedule_start_depth", self.total_iters)
+
+        g = self.opt.g_loss_threshold
+        if metrics["test_A_loss_g"] < g and metrics["test_B_loss_g"] < g:
+            self.__should_compute_gray = True
+            print("\n\n>> Start Gray <<\n")
+            if self.exp:
+                self.exp.log_parameter("schedule_start_gray", self.total_iters)
 
         d = self.opt.d_loss_threshold
         if metrics["test_A_loss_d"] < d and metrics["test_B_loss_d"] < d:
@@ -604,6 +690,7 @@ class ContinualModel(BaseModel):
     def representational_schedule(self, metrics):
         r = self.opt.r_acc_threshold
         d = self.opt.d_loss_threshold
+        g = self.opt.g_loss_threshold
         i = self.opt.i_loss_threshold
 
         if (
@@ -611,6 +698,8 @@ class ContinualModel(BaseModel):
             and metrics["test_B_rot_acc"] > r
             and metrics["test_A_loss_d"] < d
             and metrics["test_B_loss_d"] < d
+            and metrics["test_A_loss_g"] < g
+            and metrics["test_B_loss_g"] < g
             and metrics["test_loss_idt_A"] < i
             and metrics["test_loss_idt_B"] < i
         ):
@@ -621,6 +710,7 @@ class ContinualModel(BaseModel):
             self.__should_compute_translation = True
             self.__should_compute_identity = True
             self.__should_compute_rotation = False
+            self.__should_compute_gray = False
             self.__should_compute_depth = False
             if not self.repr_is_frozen:
                 if isinstance(self.netG_A, nn.DataParallel):
@@ -629,9 +719,11 @@ class ContinualModel(BaseModel):
                             self.netG_A.module.encoder,
                             self.netG_A.module.rotation,
                             self.netG_A.module.depth,
+                            self.netG_A.module.gray,
                             self.netG_B.module.encoder,
                             self.netG_B.module.rotation,
                             self.netG_B.module.depth,
+                            self.netG_B.module.gray,
                         ],
                         requires_grad=False,
                     )
@@ -641,13 +733,48 @@ class ContinualModel(BaseModel):
                             self.netG_A.encoder,
                             self.netG_A.rotation,
                             self.netG_A.depth,
+                            self.netG_A.gray,
                             self.netG_B.encoder,
                             self.netG_B.rotation,
                             self.netG_B.depth,
+                            self.netG_B.gray,
                         ],
                         requires_grad=False,
                     )
                 self.repr_is_frozen = True
+
+    def update_ref_encoder(self):
+        alpha = self.opt.encoder_merge_ratio
+        if self.ref_encoder is None:
+            self.ref_encoder_A = self.netG_A.get_encoder()
+            self.ref_encoder_A.load_state_dict(self.netG_A.encoder.state_dict())
+
+            self.ref_encoder_B = self.netG_B.get_encoder()
+            self.ref_encoder_B.load_state_dict(self.netG_B.encoder.state_dict())
+
+        else:
+            new_encoder_A = self.netG_A.get_encoder()
+            new_encoder_A.load_state_dict(
+                {
+                    k: alpha * v1 + (1 - alpha) * v2
+                    for (k, v1), (_, v2) in zip(
+                        self.netG_A.encoder.state_dict().items(),
+                        self.ref_encoder_A.state_dict().items(),
+                    )
+                }
+            )
+            self.ref_encoder_A = new_encoder_A
+            new_encoder_B = self.netG_B.get_encoder()
+            new_encoder_B.load_state_dict(
+                {
+                    k: alpha * v1 + (1 - alpha) * v2
+                    for (k, v1), (_, v2) in zip(
+                        self.netG_B.encoder.state_dict().items(),
+                        self.ref_encoder_B.state_dict().items(),
+                    )
+                }
+            )
+            self.ref_encoder_B = new_encoder_B
 
     def parallel_schedule(self, metrics):
         return
@@ -656,6 +783,7 @@ class ContinualModel(BaseModel):
         if self.opt.task_schedule == "parallel":
             self.__should_compute_rotation = True
             self.__should_compute_depth = True
+            self.__should_compute_gray = True
             self.__should_compute_identity = True
             self.__should_compute_translation = True
             self.update_task_schedule = self.parallel_schedule
@@ -663,6 +791,7 @@ class ContinualModel(BaseModel):
         elif self.opt.task_schedule == "sequential":
             self.__should_compute_rotation = True
             self.__should_compute_depth = False
+            self.__should_compute_gray = False
             self.__should_compute_identity = False
             self.__should_compute_translation = False
             self.update_task_schedule = self.sequential_schedule
@@ -670,6 +799,7 @@ class ContinualModel(BaseModel):
         elif self.opt.task_schedule in {"additional", "continual"}:
             self.__should_compute_rotation = True
             self.__should_compute_depth = False
+            self.__should_compute_gray = False
             self.__should_compute_identity = False
             self.__should_compute_translation = False
             self.update_task_schedule = self.additional_schedule
@@ -677,6 +807,7 @@ class ContinualModel(BaseModel):
         elif self.opt.task_schedule == "representational":
             self.__should_compute_rotation = True
             self.__should_compute_depth = True
+            self.__should_compute_gray = True
             self.__should_compute_identity = True
             self.__should_compute_translation = False
             self.repr_is_frozen = False
@@ -704,10 +835,20 @@ class ContinualModel(BaseModel):
         self.backward_G()  # calculate gradients for G_A and G_B
         self.optimizer_G.step()  # update G_A and G_B's weights
         # D_A and D_B
+        back_d = False
         if self.should_compute("translation"):
             self.set_requires_grad([self.netD_A, self.netD_B], True)
+            back_d = True
+        if self.should_compute("gray"):
+            self.set_requires_grad([self.netD_gA, self.netD_gB], True)
+            back_d = True
+        if back_d:
             self.optimizer_D.zero_grad()  # set D_A and D_B's gradients to zero
-            self.backward_D_A()  # calculate gradients for D_A
-            self.backward_D_B()  # calculate gradients for D_B
+            if self.should_compute("translation"):
+                self.backward_D_A()  # calculate gradients for D_A
+                self.backward_D_B()  # calculate gradients for D_B
+            if self.should_compute("gray"):
+                self.backward_D_gA()  # calculate gradients for D_A
+                self.backward_D_gB()  # calculate gradients for D_B
             self.optimizer_D.step()  # update D_A and D_B's weights
             self.update_visuals()

@@ -31,7 +31,7 @@ unzip $SLURM_TMPDIR/$continual_dataset.zip -d $SLURM_TMPDIR > /dev/null
 # 4. Launch your job, tell it to save the model in $SLURM_TMPDIR
 #    and look for the dataset into $SLURM_TMPDIR
 python train.py \
-    --git_hash="446464c72b52c77f0f24902436ccc030f903913c" \
+    --git_hash="76ffe585e297a76dd76fba7ec0a3a64cb5fcc389" \
     --dataroot $SLURM_TMPDIR/$continual_dataset \
     --name "repr_continual_1" \
     --model continual \

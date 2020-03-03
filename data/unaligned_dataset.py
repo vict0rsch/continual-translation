@@ -54,10 +54,10 @@ class UnalignedDataset(BaseDataset):
             self.transform_B = get_transform(self.opt, grayscale=(output_nc == 1))
         else:
             self.transform_A = get_dic_transform(
-                self.opt, grayscale=False, depth=True, rotation=True
+                self.opt, grayscale=False, depth=True, rotation=True, gray=True
             )
             self.transform_B = get_dic_transform(
-                self.opt, grayscale=False, depth=True, rotation=True
+                self.opt, grayscale=False, depth=True, rotation=True, gray=True
             )
 
     def __getitem__(self, index):
@@ -99,13 +99,13 @@ class UnalignedDataset(BaseDataset):
             Path(B_path).parent / "depths" / (Path(B_path).stem + ".png")
         ).convert("L")
 
-        im_dict_A = {"A": A_img, "dA": A_d_img, "rA": A_img}
+        im_dict_A = {"A": A_img, "dA": A_d_img, "rA": A_img, "gA": A_img}
         ims_A = self.transform_A(im_dict_A)
         ims_A["angleA"] = copy(ims_A["angle"])
         del ims_A["angle"]
         imgs.update(ims_A)
 
-        im_dict_B = {"B": B_img, "dB": B_d_img, "rB": B_img}
+        im_dict_B = {"B": B_img, "dB": B_d_img, "rB": B_img, "gB": B_img}
         ims_B = self.transform_B(im_dict_B)
         ims_B["angleB"] = copy(ims_B["angle"])
         del ims_B["angle"]

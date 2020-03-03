@@ -20,6 +20,7 @@ def eval(
             "B": {"target": [], "prediction": []},
         }
         depth_losses = {"A": [], "B": []}
+        gray_losses = {"A": [], "B": []}
         depth_images = {
             "A": {"target": [], "prediction": []},
             "B": {"target": [], "prediction": []},
@@ -28,8 +29,9 @@ def eval(
             "A": {"cycle": [], "idt": [], "real": [], "fake": []},
             "B": {"cycle": [], "idt": [], "real": [], "fake": []},
         }
+        gray_images = {"A": [], "B": []}
         ignore = set()
-        force = {"rotation", "depth", "identity", "translation"}
+        force = {"rotation", "depth", "identity", "translation", "gray"}
         print()
         losses = {
             k: []
@@ -78,6 +80,17 @@ def eval(
 
                 depth_losses["A"].append(np.square(target_A - pred_A).mean())
                 depth_losses["B"].append(np.square(target_B - pred_B).mean())
+
+                gray_losses["A"].append(model.loss_G_gA.item())
+                gray_losses["B"].append(model.loss_G_gB.item())
+
+                # ------------------
+                # -----  Gray  -----
+                # ------------------
+                if len(gray_images["A"]) < nb_ims // model.opt.batch_size:
+                    gray_images["A"].append(model.fake_gA.detach().cpu().numpy())
+                    gray_images["B"].append(model.fake_gB.detach().cpu().numpy())
+
             # -------------------------
             # -----  Translation  -----
             # -------------------------
@@ -115,11 +128,24 @@ def eval(
                 for im in im_list:
                     tmp += list(im)
                 depth_images[domain][im_type] = tmp
+
+    if len(gray_images["A"]) > 0 and continual:
+        for domain, im_list in gray_images.items():
+            tmp = []
+            for im in im_list:
+                tmp += list(im)
+            gray_images[domain] = tmp
+
     ims_A = []
     ims_B = []
     try:
         for i in range(0, len(test_images["A"]["real"]), 5):
             k = i + 5
+            # ---------------
+            # -----  A  -----
+            # ---------------
+
+            # Translation
             im_A_real = np.concatenate(test_images["A"]["real"][i:k], axis=-1)
             im_A_cycle = (
                 np.concatenate(test_images["A"]["cycle"][i:k], axis=-1)
@@ -142,6 +168,7 @@ def eval(
                 ),
                 axis=-2,
             )
+            # Depth
             if len(depth_images["A"]["target"]) > i and continual:
                 depth_images["A"]["target"][i:k] = [
                     to_min1_1(_im) for _im in depth_images["A"]["target"][i:k]
@@ -159,8 +186,18 @@ def eval(
                     np.concatenate([im_d_A_target, im_d_A_pred], axis=-2), 3, axis=0
                 )
                 im_A = np.concatenate([im_A, ims_d_A], axis=-2)
+            # Gray
+            if len(gray_images["A"]) > i and continual:
+                im_g_A = np.concatenate(gray_images["A"][i:k], axis=-1)
+                im_A = np.concatenate([im_A, im_g_A], axis=-2)
+
             ims_A.append(im_A)
 
+            # ---------------
+            # -----  B  -----
+            # ---------------
+
+            # Translation
             im_B_real = np.concatenate(test_images["B"]["real"][i:k], axis=-1)
             im_B_cycle = (
                 np.concatenate(test_images["B"]["cycle"][i:k], axis=-1)
@@ -183,6 +220,7 @@ def eval(
                 ),
                 axis=-2,
             )
+            # Depth
             if len(depth_images["B"]["target"]) > i and continual:
                 depth_images["B"]["target"][i:k] = [
                     to_min1_1(_im) for _im in depth_images["B"]["target"][i:k]
@@ -200,6 +238,11 @@ def eval(
                     np.concatenate([im_d_B_target, im_d_B_pred], axis=-2), 3, axis=0
                 )
                 im_B = np.concatenate([im_B, ims_d_B], axis=-2)
+            # Gray
+            if len(gray_images["B"]) > i and continual:
+                im_g_B = np.concatenate(gray_images["B"][i:k], axis=-1)
+                im_B = np.concatenate([im_B, im_g_B], axis=-2)
+
             ims_B.append(im_B)
     except ValueError as e:
         print(e)
@@ -213,17 +256,19 @@ def eval(
     for i in range(len(ims_A)):
         exp.log_image(
             (np.transpose(ims_A[i], (1, 2, 0)) + 1) / 2,
-            "test_A_{}_{}_{}_rfci".format(total_iters, i * 5, (i + 1) * 5 - 1),
+            "test_A_{}_{}_{}_rfcidg".format(total_iters, i * 5, (i + 1) * 5 - 1),
             step=total_iters,
         )
         exp.log_image(
             (np.transpose(ims_B[i], (1, 2, 0)) + 1) / 2,
-            "test_B_{}_{}_{}_rfci".format(total_iters, i * 5, (i + 1) * 5 - 1),
+            "test_B_{}_{}_{}_rfcidg".format(total_iters, i * 5, (i + 1) * 5 - 1),
             step=total_iters,
         )
     if continual:
         test_A_loss_d = np.mean(depth_losses["A"])
         test_B_loss_d = np.mean(depth_losses["B"])
+        test_A_loss_g = np.mean(gray_losses["A"])
+        test_B_loss_g = np.mean(gray_losses["B"])
         test_A_rot_acc = np.mean(
             [p == t for p, t in zip(angles["A"]["prediction"], angles["A"]["target"])]
         )
@@ -232,6 +277,8 @@ def eval(
         )
         exp.log_metric("test_A_loss_d", test_A_loss_d, step=total_iters)
         exp.log_metric("test_B_loss_d", test_B_loss_d, step=total_iters)
+        exp.log_metric("test_A_loss_g", test_A_loss_g, step=total_iters)
+        exp.log_metric("test_B_loss_g", test_B_loss_g, step=total_iters)
         exp.log_metric(
             "test_A_rot_acc", test_A_rot_acc, step=total_iters,
         )
@@ -257,6 +304,8 @@ def eval(
     metrics = {
         "test_A_loss_d": test_A_loss_d,
         "test_B_loss_d": test_B_loss_d,
+        "test_A_loss_g": test_A_loss_g,
+        "test_B_loss_g": test_B_loss_g,
         "test_A_rot_acc": test_A_rot_acc,
         "test_B_rot_acc": test_B_rot_acc,
     }
