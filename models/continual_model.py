@@ -5,7 +5,7 @@ from .base_model import BaseModel
 from . import networks
 from util.util import angles_to_tensors
 import torch.nn as nn
-from copy import copy
+from .task import AuxiliaryTasks
 
 
 class ContinualModel(BaseModel):
@@ -158,7 +158,7 @@ class ContinualModel(BaseModel):
             "G_B_r",
             "G_B_d",
             "G_gA",
-            "G_gB"
+            "G_gB",
         ]
         # specify the images you want to save/display. The training/test scripts
         # will call <BaseModel.get_current_visuals>
@@ -168,6 +168,8 @@ class ContinualModel(BaseModel):
         #     # if identity loss is used, we also visualize idt_B=G_A(B) ad idt_A=G_A(B)
         #     visual_names_A.append("idt_B")
         #     visual_names_B.append("idt_A")
+
+        self.tasks = AuxiliaryTasks(["rotation", "depth", "gray"])
 
         # combine visualizations for A and B
         self.visual_names = set(["real_A", "real_B"])
