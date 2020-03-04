@@ -413,10 +413,8 @@ class ContinualModel(BaseModel):
             # -------------------------
             # -----  Target data  -----
             # -------------------------
-            if (
-                t.has_target
-                and ("A_" + t.target_key) in input
-                and not hasattr(self, "A_" + t.target_key)
+            if ("A_" + t.target_key) in input and not hasattr(
+                self, "A_" + t.target_key
             ):
                 targets = [
                     input["A_" + t.target_key if AtoB else "B_" + t.target_key],
@@ -584,7 +582,7 @@ class ContinualModel(BaseModel):
         self.loss_D_B = self.backward_D_basic(self.netD_B, self.A_real, A_fake)
 
     def should_compute(self, arg):
-        key = f"__should_compute_{arg}"
+        key = f"_should_compute_{arg}"
         if not hasattr(self, key):
             raise ValueError(f"Unknown arg {arg}")
         return self.get(key)
@@ -711,8 +709,8 @@ class ContinualModel(BaseModel):
                     next_keys = ["identity", "translation"]
 
                 for i, nk in enumerate(next_keys):
-                    setattr(self, f"__should_compute_{t.key}", False)
-                    setattr(self, f"__should_compute_{nk}", True)
+                    setattr(self, f"_should_compute_{t.key}", False)
+                    setattr(self, f"_should_compute_{nk}", True)
                     print(f"\n\n>> Stop {t.key} ; Start {next_keys} <<\n")
                     if self.exp:
                         if i == 0:
@@ -745,7 +743,7 @@ class ContinualModel(BaseModel):
                 else:
                     next_keys = ["identity", "translation"]
                 for i, nk in enumerate(next_keys):
-                    setattr(self, f"__should_compute_{nk}", False)
+                    setattr(self, f"_should_compute_{nk}", False)
                     if i == 0:
                         print(f"\n\n>> Start {next_keys} <<\n")
                     if self.exp:
@@ -779,10 +777,10 @@ class ContinualModel(BaseModel):
             if self.exp:
                 self.exp.log_parameter("schedule_start_translation", self.total_iters)
                 self.exp.log_parameter("schedule_stop_representation", self.total_iters)
-            self.__should_compute_translation = True
-            self.__should_compute_identity = True
+            self._should_compute_translation = True
+            self._should_compute_identity = True
             for t in self.tasks:
-                setattr(self, f"__should_compute_{t.key}", False)
+                setattr(self, f"_should_compute_{t.key}", False)
 
             if not self.repr_is_frozen:
                 if isinstance(self.netG_A, nn.DataParallel):
@@ -848,32 +846,32 @@ class ContinualModel(BaseModel):
     def init_schedule(self):
         if self.opt.task_schedule == "parallel":
             for t in self.tasks:
-                setattr(self, f"__should_compute_{t.key}", True)
-            self.__should_compute_identity = True
-            self.__should_compute_translation = True
+                setattr(self, f"_should_compute_{t.key}", True)
+            self._should_compute_identity = True
+            self._should_compute_translation = True
             self.update_task_schedule = self.parallel_schedule
 
         elif self.opt.task_schedule == "sequential":
             for t in self.tasks:
-                setattr(self, f"__should_compute_{t.key}", False)
-            setattr(self, f"__should_compute_{self.tasks.keys[0]}", True)
-            self.__should_compute_identity = False
-            self.__should_compute_translation = False
+                setattr(self, f"_should_compute_{t.key}", False)
+            setattr(self, f"_should_compute_{self.tasks.keys[0]}", True)
+            self._should_compute_identity = False
+            self._should_compute_translation = False
             self.update_task_schedule = self.sequential_schedule
 
         elif self.opt.task_schedule in {"additional", "continual"}:
             for t in self.tasks:
-                setattr(self, f"__should_compute_{t.key}", False)
-            setattr(self, f"__should_compute_{self.tasks.keys[0]}", True)
-            self.__should_compute_identity = False
-            self.__should_compute_translation = False
+                setattr(self, f"_should_compute_{t.key}", False)
+            setattr(self, f"_should_compute_{self.tasks.keys[0]}", True)
+            self._should_compute_identity = False
+            self._should_compute_translation = False
             self.update_task_schedule = self.additional_schedule
 
         elif self.opt.task_schedule == "representational":
             for t in self.tasks:
-                setattr(self, f"__should_compute_{t.key}", True)
-            self.__should_compute_identity = True
-            self.__should_compute_translation = False
+                setattr(self, f"_should_compute_{t.key}", True)
+            self._should_compute_identity = True
+            self._should_compute_translation = False
             self.repr_is_frozen = False
             self.update_task_schedule = self.representational_schedule
 

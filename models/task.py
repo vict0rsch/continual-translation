@@ -4,29 +4,25 @@ from collections import OrderedDict
 class BaseTask:
     def __init__(self):
         super().__init__()
-        self.key = ""
-        self.loss_names = []
-        self.needs_D = False
-        self.needs_lr = False
-        self.needs_z = False
-        self.module_name = ""
-        self.lambda_key = ""
-        self.loss_function = ""
-        self.priority = 0
-        self.metrics_key = ""
-        self.threshold_key = ""
-        self.no_G = False
-        self.target_key = None
-        self.has_target = False
-        self.eval_visuals_pred = False
-        self.eval_visuals_target = False
-        self.eval_acc = False
-        self.log_type = "acc"
-        self.output_dim = 0
-        self.loader_resize_target = True
-        self.loader_resize_input = True
-        self.loader_flip = True
-        self.input_key = ""
+        self.key = ""  # task's name
+        self.loss_names = []  # added to the model's losses
+        self.needs_D = False  # Task is GAN-based
+        self.needs_lr = False  # Specify lr?
+        self.needs_z = False  # Task has specific input, not A|B _real
+        self.module_name = ""  # Generator decoder module
+        self.lambda_key = ""  # --lambda_<self.lambda_key> in the params
+        self.priority = 0  # tasks are sorted by increasing priority/complexity
+        self.threshold_key = ""  # will be set in setup()
+        self.target_key = None  # will be set in setup() if not specified
+        self.eval_visuals_pred = False  # prediction is an image of some sort
+        self.eval_visuals_target = False  # target is an image of some sort
+        self.eval_acc = False  # measure accuracy for task?
+        self.log_type = "acc"  # log loss or acc?
+        self.output_dim = 0  # if logging acc, it is the number of potential classes
+        self.loader_resize_target = True  # target data should be cropped/resized etc.
+        self.loader_resize_input = True  # input data should be cropped/resized etc.
+        self.loader_flip = True  # flip input and target data in loader?
+        self.input_key = ""  # key in batch dict for this task's input data
 
     def setup(self):
 
@@ -42,14 +38,13 @@ class BaseTask:
         if self.needs_lr and not self.module_name:
             raise ValueError("needs_lr and module_name")
 
-        if not self.no_G:
-            self.loss_names.append(f"G_A_{self.key}")
-            self.loss_names.append(f"G_B_{self.key}")
+        self.loss_names.append(f"G_A_{self.key}")
+        self.loss_names.append(f"G_B_{self.key}")
         if self.needs_D:
             self.loss_names.append(f"D_A_{self.key}")
             self.loss_names.append(f"D_B_{self.key}")
 
-        if self.has_target and self.target_key is None:
+        if self.target_key is None:
             self.target_key = self.key + "_target"
 
         if self.log_type == "acc":
@@ -76,7 +71,6 @@ class GrayTask(BaseTask):
         self.key = "gray"
         self.needs_D = True
         self.needs_lr = True
-        self.has_target = True
         self.target_key = "real"
         self.threshold_type = "acc"
         self.priority = 2
@@ -92,7 +86,6 @@ class RotationTask(BaseTask):
     def __init__(self):
         super().__init__()
         self.key = "rotation"
-        self.has_target = True
         self.threshold_type = "loss"
         self.priority = 0
         self.needs_z = True
@@ -112,7 +105,6 @@ class DepthTask(BaseTask):
         super().__init__()
         self.key = "depth"
         self.needs_lr = True
-        self.has_target = True
         self.threshold_type = "loss"
         self.priority = 1
         self.needs_z = False

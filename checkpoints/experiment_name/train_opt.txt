@@ -5,9 +5,9 @@
           checkpoints_dir: ./checkpoints                 
            continue_train: False                         
                 crop_size: 256                           
-         d_loss_threshold: 0.5                           
                  dataroot: s2w_d                         	[default: None]
              dataset_mode: unaligned                     
+     depth_loss_threshold: 0.5                           
                 direction: AtoB                          
               display_env: main                          
              display_freq: 400                           
@@ -19,9 +19,9 @@
       encoder_merge_ratio: 1.0                           
                     epoch: latest                        
               epoch_count: 1                             
-         g_loss_threshold: 0.5                           
                  gan_mode: lsgan                         
                   gpu_ids: -1                            	[default: 0]
+      gray_loss_threshold: 0.5                           
          i_loss_threshold: 0.5                           
                 init_gain: 0.02                          
                 init_type: normal                        
@@ -40,7 +40,7 @@
                  lr_depth: 0.0002                        
                   lr_gray: 0.0002                        
                 lr_policy: linear                        
-                   lr_rot: 0.0002                        
+              lr_rotation: 0.0002                        
          max_dataset_size: inf                           
                     model: continual                     
                  n_epochs: 100                           
@@ -61,7 +61,7 @@
                 pool_size: 50                            
                preprocess: resize_and_crop               
                print_freq: 100                           
-          r_acc_threshold: 0.2                           
+   rotation_acc_threshold: 0.2                           
              save_by_iter: False                         
           save_epoch_freq: 5                             
          save_latest_freq: 5000                          
