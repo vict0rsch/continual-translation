@@ -7,6 +7,27 @@ from util.util import angles_to_tensors
 import torch.nn as nn
 from .task import AuxiliaryTasks
 
+import functools
+
+DELIMITER = "."
+
+
+def rgetattr(obj, path: str, *default):
+    """
+    :param obj: Object
+    :param path: 'attr1.attr2.etc'
+    :param default: Optional default value, at any point in the path
+    :return: obj.attr1.attr2.etc
+    """
+
+    attrs = path.split(DELIMITER)
+    try:
+        return functools.reduce(getattr, attrs, obj)
+    except AttributeError:
+        if default:
+            return default[0]
+        raise
+
 
 class ContinualModel(BaseModel):
     """
@@ -142,37 +163,41 @@ class ContinualModel(BaseModel):
                 a subclass of BaseOptions
         """
         BaseModel.__init__(self, opt)
+
+        self.tasks = AuxiliaryTasks(["rotation", "depth", "gray"])
         # specify the training losses you want to print out.
         # The training/test scripts will call <BaseModel.get_current_losses>
         self.loss_names = [
             "D_A",
             "G_A",
             "cycle_A",
-            "idt_A",
+            "A_idt",
             "D_B",
             "G_B",
             "cycle_B",
-            "idt_B",
-            "G_A_r",
-            "G_A_d",
-            "G_B_r",
-            "G_B_d",
-            "G_gA",
-            "G_gB",
+            "B_idt",
+            # "G_A_r",
+            # "G_A_d",
+            # "G_B_r",
+            # "G_B_d",
+            # "G_gA",
+            # "G_gB",
         ]
+
+        for t in self.tasks:
+            self.loss_names += t.loss_names
+
         # specify the images you want to save/display. The training/test scripts
         # will call <BaseModel.get_current_visuals>
-        # visual_names_A = ["real_A", "fake_B", "rec_A"]
-        # visual_names_B = ["real_B", "fake_A", "rec_B"]
+        # visual_names_A = ["A_real", "B_fake", "A_rec"]
+        # visual_names_B = ["B_real", "A_fake", "B_rec"]
         # if self.isTrain and self.opt.lambda_I > 0.0:
-        #     # if identity loss is used, we also visualize idt_B=G_A(B) ad idt_A=G_A(B)
-        #     visual_names_A.append("idt_B")
-        #     visual_names_B.append("idt_A")
-
-        self.tasks = AuxiliaryTasks(["rotation", "depth", "gray"])
+        #     # if identity loss is used, we also visualize B_idt=G_A(B) ad A_idt=G_A(B)
+        #     visual_names_A.append("B_idt")
+        #     visual_names_B.append("A_idt")
 
         # combine visualizations for A and B
-        self.visual_names = set(["real_A", "real_B"])
+        self.visual_names = set(["A_real", "B_real"])
         # specify the models you want to save to the disk. The training/test scripts
         # will call <BaseModel.save_networks> and <BaseModel.load_networks>.
         if self.isTrain:
@@ -229,26 +254,36 @@ class ContinualModel(BaseModel):
                 opt.init_gain,
                 self.gpu_ids,
             )
-            self.netD_gA = networks.define_D(
-                opt.output_nc,
-                opt.ndf,
-                opt.netD,
-                opt.n_layers_D,
-                opt.norm,
-                opt.init_type,
-                opt.init_gain,
-                self.gpu_ids,
-            )
-            self.netD_gB = networks.define_D(
-                opt.input_nc,
-                opt.ndf,
-                opt.netD,
-                opt.n_layers_D,
-                opt.norm,
-                opt.init_type,
-                opt.init_gain,
-                self.gpu_ids,
-            )
+            for t in self.tasks:
+                if t.needs_D:
+                    setattr(
+                        self,
+                        f"netD_A_{t.key}",
+                        networks.define_D(
+                            opt.output_nc,
+                            opt.ndf,
+                            opt.netD,
+                            opt.n_layers_D,
+                            opt.norm,
+                            opt.init_type,
+                            opt.init_gain,
+                            self.gpu_ids,
+                        ),
+                    )
+                    setattr(
+                        self,
+                        f"netD_B_{t.key}",
+                        networks.define_D(
+                            opt.output_nc,
+                            opt.ndf,
+                            opt.netD,
+                            opt.n_layers_D,
+                            opt.norm,
+                            opt.init_type,
+                            opt.init_gain,
+                            self.gpu_ids,
+                        ),
+                    )
 
         if self.isTrain:
             if opt.lambda_I > 0.0:
@@ -271,73 +306,70 @@ class ContinualModel(BaseModel):
             self.depthCriterion = torch.nn.L1Loss()
 
             if isinstance(self.netG_A, nn.DataParallel):
-                params = itertools.chain(
-                    self.netG_A.module.encoder.parameters(),
-                    self.netG_A.module.decoder.parameters(),
-                    self.netG_B.module.encoder.parameters(),
-                    self.netG_B.module.decoder.parameters(),
-                )
-                depth_params = itertools.chain(
-                    self.netG_A.module.depth.parameters(),
-                    self.netG_B.module.depth.parameters(),
-                )
-                gray_params = itertools.chain(
-                    self.netG_A.module.gray.parameters(),
-                    self.netG_B.module.gray.parameters(),
-                )
-                rot_params = itertools.chain(
-                    self.netG_A.module.rotation.parameters(),
-                    self.netG_B.module.rotation.parameters(),
-                )
+                params = {
+                    "params": itertools.chain(
+                        self.netG_A.module.encoder.parameters(),
+                        self.netG_A.module.decoder.parameters(),
+                        self.netG_B.module.encoder.parameters(),
+                        self.netG_B.module.decoder.parameters(),
+                    )
+                }
+                all_G_params = [params]
+                for t in self.tasks:
+                    tp = itertools.chain(
+                        getattr(self.netG_A.module, t.module_name).parameters(),
+                        getattr(self.netG_B.module, t.module_name).parameters(),
+                    )
+                    if t.needs_lr:
+                        all_G_params += [
+                            {"params": tp, "lr": getattr(opt, "lr_" + t.key)}
+                        ]
+                    else:
+                        all_G_params += [{"params": tp}]
             else:
-                params = itertools.chain(
-                    self.netG_A.encoder.parameters(),
-                    self.netG_A.decoder.parameters(),
-                    self.netG_B.encoder.parameters(),
-                    self.netG_B.decoder.parameters(),
-                )
-                depth_params = itertools.chain(
-                    self.netG_A.depth.parameters(), self.netG_B.depth.parameters(),
-                )
-                gray_params = itertools.chain(
-                    self.netG_A.gray.parameters(), self.netG_B.gray.parameters(),
-                )
-                rot_params = itertools.chain(
-                    self.netG_A.rotation.parameters(), self.netG_B.rotation.parameters()
-                )
+                params = {
+                    "params": itertools.chain(
+                        self.netG_A.encoder.parameters(),
+                        self.netG_A.decoder.parameters(),
+                        self.netG_B.encoder.parameters(),
+                        self.netG_B.decoder.parameters(),
+                    )
+                }
+                all_G_params = [params]
+                for t in self.tasks:
+                    tp = itertools.chain(
+                        getattr(self.netG_A, t.module_name).parameters(),
+                        getattr(self.netG_B, t.module_name).parameters(),
+                    )
+                    if t.needs_lr:
+                        all_G_params += [
+                            {"params": tp, "lr": getattr(opt, "lr_" + t.key)}
+                        ]
+                    else:
+                        all_G_params += [{"params": tp}]
 
             self.optimizer_G = torch.optim.Adam(
-                [
-                    {"params": params},
-                    {"params": rot_params, "lr": opt.lr_rot},
-                    {"params": depth_params, "lr": opt.lr_depth},
-                    {"params": gray_params, "lr": opt.lr_gray},
-                ],
-                lr=opt.lr,
-                betas=(opt.beta1, 0.999),
+                all_G_params, lr=opt.lr, betas=(opt.beta1, 0.999),
             )
+            all_D_params = []
+            for d in dir(self):
+                if d.startswith("netD_"):
+                    attr = self.get(d)
+                    assert isinstance(attr, nn.Module)
+                    all_D_params.append(attr.parameters())
             self.optimizer_D = torch.optim.Adam(
-                itertools.chain(
-                    self.netD_A.parameters(),
-                    self.netD_gA.parameters(),
-                    self.netD_B.parameters(),
-                    self.netD_gB.parameters(),
-                ),
-                lr=opt.lr,
-                betas=(opt.beta1, 0.999),
+                itertools.chain(*all_D_params), lr=opt.lr, betas=(opt.beta1, 0.999),
             )
             self.optimizers.append(self.optimizer_G)
             self.optimizers.append(self.optimizer_D)
         self.init_schedule()
 
     def get_state_dict(self):
-        return {
-            "net" + k: getattr(self, "net" + k).state_dict() for k in self.model_names
-        }
+        return {"net" + k: self.get("net" + k).state_dict() for k in self.model_names}
 
     def set_state_dict(self, d):
         for k, v in d.items():
-            getattr(self, k).load_state_dict(v)
+            self.get(k).load_state_dict(v)
 
     def set_input(self, input):
         """Unpack input data from the dataloader and perform necessary pre-processing steps.
@@ -346,27 +378,51 @@ class ContinualModel(BaseModel):
         The option 'direction' can be used to swap domain A and domain B.
         """
         AtoB = self.opt.direction == "AtoB"
-        self.real_A = input["A" if AtoB else "B"].to(self.device)
-        self.depth_A = input["dA" if AtoB else "dB"].to(self.device).float()
-        self.gA = input["gA" if AtoB else "gB"].to(self.device).float()
-        self.rot_A = (
-            input["rA" if AtoB else "rB"]
-            .to(self.device)
-            .view(-1, 3, self.real_A.shape[-2], self.real_A.shape[-1])
-        )
-        self.angle_A = input["angleA" if AtoB else "angleB"].to(self.device).view(-1)
+        self.A_real = input["A" if AtoB else "B"].to(self.device)
         self.image_paths_A = input["A_paths" if AtoB else "B_paths"]
-
-        self.real_B = input["B" if AtoB else "A"].to(self.device)
-        self.depth_B = input["dB" if AtoB else "dA"].to(self.device).float()
-        self.gB = input["gB" if AtoB else "gA"].to(self.device).float()
-        self.rot_B = (
-            input["rB" if AtoB else "rA"]
-            .to(self.device)
-            .view(-1, 3, self.real_B.shape[-2], self.real_B.shape[-1])
-        )
-        self.angle_B = input["angleB" if AtoB else "angleA"].to(self.device).view(-1)
+        self.B_real = input["B" if AtoB else "A"].to(self.device)
         self.image_paths_B = input["B_paths" if AtoB else "A_paths"]
+
+        for t in self.tasks:
+            # ------------------------
+            # -----  Input data  -----
+            # ------------------------
+            if ("A_" + t.key) in input and ("B_" + t.key) in input:
+                inputs = [
+                    input["A_" + t.key if AtoB else "B_" + t.key],
+                    input["B_" + t.key if AtoB else "A_" + t.key],
+                ]
+                for i, inp in enumerate(inputs):
+                    inputs[i] = inp.to(self.device).float()
+
+                if t.key == "rotation":
+                    for i, inp in enumerate(inputs):
+                        inputs[i] = inp.view(
+                            -1, 3, self.A_real.shape[-2], self.A_real.shape[-1]
+                        )
+                setattr(self, "A_" + t.key, inputs[0])
+                setattr(self, "B_" + t.key, inputs[1])
+            # -------------------------
+            # -----  Target data  -----
+            # -------------------------
+            if (
+                t.has_target
+                and ("A_" + t.target_key) in input
+                and not hasattr(self, "A_" + t.target_key)
+            ):
+                targets = [
+                    input["A_" + t.target_key if AtoB else "B_" + t.target_key],
+                    input["B_" + t.target_key if AtoB else "A_" + t.target_key],
+                ]
+                for i, tar in enumerate(targets):
+                    targets[i] = tar.to(self.device)
+
+                if t.key == "depth":
+                    for i, target in targets:
+                        targets[i] = target.view(-1)
+
+                setattr(self, "A_" + t.target_key, targets[0])
+                setattr(self, "B_" + t.target_key, targets[1])
 
     def forward(self, ignore=set(), force=set()):
         """Run forward pass; called by both functions
@@ -374,12 +430,11 @@ class ContinualModel(BaseModel):
 
         assert not (ignore & force)
         should = {
-            "rotation": False,
-            "depth": False,
-            "gray": False,
             "identity": False,
             "translation": False,
         }
+        should.update({t.key: False for t in self.tasks})
+
         for k in should:
             if k in force:
                 should[k] = True
@@ -395,34 +450,41 @@ class ContinualModel(BaseModel):
             # --------------------
             # -----  Encode  -----
             # --------------------
-            self.z_A = self.netG_A.module.encoder(self.real_A)
-            self.z_B = self.netG_B.module.encoder(self.real_B)
-
-            if should["rotation"]:
-                self.z_rA = self.netG_A.module.encoder(self.rot_A)
-                self.z_rB = self.netG_B.module.encoder(self.rot_B)
-                self.angle_A_pred = self.netG_A.module.rotation(self.z_rA)
-                self.angle_B_pred = self.netG_B.module.rotation(self.z_rB)
-
-            if should["depth"]:
-                self.depth_A_pred = self.netG_A.module.depth(self.z_A)
-                self.depth_B_pred = self.netG_B.module.depth(self.z_B)
+            self.A_z = self.netG_A.module.encoder(self.A_real)
+            self.B_z = self.netG_B.module.encoder(self.B_real)
 
             if should["identity"]:
-                self.idt_A = self.netG_A.module.decoder(self.z_B)
-                self.idt_B = self.netG_B.module.decoder(self.z_A)
-
-            if should["gray"]:
-                self.z_gA = self.netG_A.module.encoder(self.gA)
-                self.z_gB = self.netG_B.module.encoder(self.gB)
-                self.fake_gA = self.netG_A.module.gray(self.z_gA)
-                self.fake_gB = self.netG_B.module.gray(self.z_gB)
+                self.A_idt = self.netG_A.module.decoder(self.B_z)
+                self.B_idt = self.netG_B.module.decoder(self.A_z)
 
             if should["translation"]:
-                self.fake_B = self.netG_A.module.decoder(self.z_A)  # G_A(A)
-                self.rec_A = self.netG_B(self.fake_B)  # G_B(G_A(A))
-                self.fake_A = self.netG_B.module.decoder(self.z_B)  # G_B(B)
-                self.rec_B = self.netG_A(self.fake_A)  # G_A(G_B(B))
+                self.B_fake = self.netG_A.module.decoder(self.A_z)  # G_A(A)
+                self.A_rec = self.netG_B(self.B_fake)  # G_B(G_A(A))
+                self.A_fake = self.netG_B.module.decoder(self.B_z)  # G_B(B)
+                self.B_rec = self.netG_A(self.A_fake)  # G_A(G_B(B))
+
+            for t in self.tasks:
+                if not should[t.key]:
+                    continue
+
+                if t.needs_z:
+                    data = {
+                        domain: self.get(f"{domain}_{t.key}") for domain in ["A", "B"]
+                    }
+                    for domain in ["A", "B"]:
+                        encoder = rgetattr(self, f"netG_{domain}.module.encoder")
+                        data[domain] = encoder(data[domain])
+                        setattr(self, f"{domain}_z_{t.key}", data)
+                else:
+                    data = {
+                        "A": self.A_real,
+                        "B": self.B_real,
+                    }
+
+                for domain in ["A", "B"]:
+                    model = rgetattr(self, f"netG_{domain}.module.{t.module_name}")
+                    setattr(self, f"{domain}_{t.key}_pred", model(data[domain]))
+
         # ---------------------------
         # -----  Other Devices  -----
         # ---------------------------
@@ -430,34 +492,40 @@ class ContinualModel(BaseModel):
             # --------------------
             # -----  Encode  -----
             # --------------------
-            self.z_A = self.netG_A.encoder(self.real_A)
-            self.z_B = self.netG_B.encoder(self.real_B)
-
-            if should["rotation"]:
-                self.z_rA = self.netG_A.encoder(self.rot_A)
-                self.z_rB = self.netG_B.encoder(self.rot_B)
-                self.angle_A_pred = self.netG_A.rotation(self.z_rA)
-                self.angle_B_pred = self.netG_B.rotation(self.z_rB)
-
-            if should["depth"]:
-                self.depth_A_pred = self.netG_A.depth(self.z_A)
-                self.depth_B_pred = self.netG_B.depth(self.z_B)
+            self.A_z = self.netG_A.encoder(self.A_real)
+            self.B_z = self.netG_B.encoder(self.B_real)
 
             if should["identity"]:
-                self.idt_A = self.netG_A.decoder(self.z_B)
-                self.idt_B = self.netG_B.decoder(self.z_A)
-
-            if should["gray"]:
-                self.z_gA = self.netG_A.encoder(self.gA)
-                self.z_gB = self.netG_B.encoder(self.gB)
-                self.fake_gA = self.netG_A.gray(self.z_gA)
-                self.fake_gB = self.netG_B.gray(self.z_gB)
+                self.A_idt = self.netG_A.decoder(self.B_z)
+                self.B_idt = self.netG_B.decoder(self.A_z)
 
             if should["translation"]:
-                self.fake_B = self.netG_A.decoder(self.z_A)  # G_A(A)
-                self.rec_A = self.netG_B(self.fake_B)  # G_B(G_A(A))
-                self.fake_A = self.netG_B.decoder(self.z_B)  # G_B(B)
-                self.rec_B = self.netG_A(self.fake_A)  # G_A(G_B(B))
+                self.B_fake = self.netG_A.decoder(self.A_z)  # G_A(A)
+                self.A_rec = self.netG_B(self.B_fake)  # G_B(G_A(A))
+                self.A_fake = self.netG_B.decoder(self.B_z)  # G_B(B)
+                self.B_rec = self.netG_A(self.A_fake)  # G_A(G_B(B))
+
+            for t in self.tasks:
+                if not should[t.key]:
+                    continue
+
+                if t.needs_z:
+                    data = {
+                        domain: self.get(f"{domain}_{t.key}") for domain in ["A", "B"]
+                    }
+                    for domain in ["A", "B"]:
+                        encoder = rgetattr(self, f"netG_{domain}.encoder")
+                        data[domain] = encoder(data[domain])
+                        setattr(self, f"{domain}_z_{t.key}", data)
+                else:
+                    data = {
+                        "A": self.A_real,
+                        "B": self.B_real,
+                    }
+
+                for domain in ["A", "B"]:
+                    model = rgetattr(self, f"netG_{domain}.{t.module_name}")
+                    setattr(self, f"{domain}_{t.key}_pred", model(data[domain]))
 
     def backward_D_basic(self, netD, real, fake):
         """Calculate GAN loss for the discriminator
@@ -479,76 +547,39 @@ class ContinualModel(BaseModel):
         loss_D.backward()
         return loss_D
 
+    def backward_D(self):
+
+        if self.should_compute("translation"):
+            self.set_requires_grad([self.netD_A, self.netD_B], True)
+            self.backward_D_A()
+            self.backward_D_B()
+
+        for t in self.tasks:
+            if not self.should_compute(t.key) or not t.needs_D:
+                continue
+            for domain in ["A", "B"]:
+                netD = self.get(f"netD_{domain}_{t.key}")
+                self.set_requires_grad([netD], True)
+                real = self.get(f"{domain}_{t.key}")
+                fake = self.get(f"{domain}_{t.key}_pred")
+                loss = self.backward_D_basic(netD, real, fake)
+                setattr(self, f"loss_D_{domain}_{t.key}", loss)
+
     def backward_D_A(self):
         """Calculate GAN loss for discriminator D_A"""
-        fake_B = self.fake_B_pool.query(self.fake_B)
-        self.loss_D_A = self.backward_D_basic(self.netD_A, self.real_B, fake_B)
-
-    def backward_D_gA(self):
-        """Calculate GAN loss for discriminator D_A"""
-        self.loss_D_A = self.backward_D_basic(self.netD_gA, self.real_A, self.fake_gA)
+        B_fake = self.fake_B_pool.query(self.B_fake)
+        self.loss_D_A = self.backward_D_basic(self.netD_A, self.B_real, B_fake)
 
     def backward_D_B(self):
         """Calculate GAN loss for discriminator D_B"""
-        fake_A = self.fake_A_pool.query(self.fake_A)
-        self.loss_D_B = self.backward_D_basic(self.netD_B, self.real_A, fake_A)
-
-    def backward_D_gB(self):
-        """Calculate GAN loss for discriminator D_A"""
-        self.loss_D_gB = self.backward_D_basic(self.netD_gB, self.real_B, self.fake_gB)
+        A_fake = self.fake_A_pool.query(self.A_fake)
+        self.loss_D_B = self.backward_D_basic(self.netD_B, self.A_real, A_fake)
 
     def should_compute(self, arg):
-        if arg == "rotation":
-            return self.__should_compute_rotation
-        elif arg == "depth":
-            return self.__should_compute_depth
-        elif arg == "identity":
-            return self.__should_compute_identity
-        elif arg == "translation":
-            return self.__should_compute_translation
-        elif arg == "gray":
-            return self.__should_compute_gray
-        raise ValueError(f"Unknown arg {arg}")
-
-    def update_visuals(self):
-        if self.__should_compute_translation:
-            self.visual_names.add("fake_A")
-            self.visual_names.add("fake_B")
-            self.visual_names.add("rec_A")
-            self.visual_names.add("rec_B")
-        else:
-            if "fake_A" in self.visual_names:
-                self.visual_names.remove("fake_A")
-            if "fake_B" in self.visual_names:
-                self.visual_names.remove("fake_B")
-            if "rec_A" in self.visual_names:
-                self.visual_names.remove("rec_A")
-            if "rec_B" in self.visual_names:
-                self.visual_names.remove("rec_B")
-
-        if self.__should_compute_identity:
-            self.visual_names.add("idt_B")
-            self.visual_names.add("idt_A")
-        else:
-            if "idt_B" in self.visual_names:
-                self.visual_names.remove("idt_B")
-            if "idt_A" in self.visual_names:
-                self.visual_names.remove("idt_A")
-
-        if self.__should_compute_depth:
-            self.visual_names.add("depth_B")
-            self.visual_names.add("depth_B_pred")
-            self.visual_names.add("depth_A")
-            self.visual_names.add("depth_A_pred")
-        else:
-            if "depth_B" in self.visual_names:
-                self.visual_names.remove("depth_B")
-            if "depth_B_pred" in self.visual_names:
-                self.visual_names.remove("depth_B_pred")
-            if "depth_A" in self.visual_names:
-                self.visual_names.remove("depth_A")
-            if "depth_A_pred" in self.visual_names:
-                self.visual_names.remove("depth_A_pred")
+        key = f"__should_compute_{arg}"
+        if not hasattr(self, key):
+            raise ValueError(f"Unknown arg {arg}")
+        return self.get(key)
 
     def backward_G(self, losses_only=False, ignore=set(), force=set()):
         """Calculate the loss for generators G_A and G_B"""
@@ -563,12 +594,11 @@ class ContinualModel(BaseModel):
 
         assert not (ignore & force)
         should = {
-            "rotation": False,
-            "depth": False,
-            "gray": False,
             "identity": False,
             "translation": False,
         }
+        should.update({t.key: False for t in self.tasks})
+
         for k in should:
             if k in force:
                 should[k] = True
@@ -580,66 +610,66 @@ class ContinualModel(BaseModel):
         self.loss_G = 0
         if should["depth"]:
             # print("depth loss")
-            device = self.depth_A_pred.device
-            self.loss_G_A_d = self.depthCriterion(
-                self.depth_A_pred, self.depth_A.to(device)
+            device = self.A_depth_pred.device
+            self.loss_G_A_depth = self.depthCriterion(
+                self.A_depth_pred, self.A_depth.to(device)
             )
-            self.loss_G_B_d = self.depthCriterion(
-                self.depth_B_pred, self.depth_B.to(device)
+            self.loss_G_B_depth = self.depthCriterion(
+                self.B_depth_pred, self.B_depth.to(device)
             )
-            self.loss_G += lambda_D * (self.loss_G_B_d + self.loss_G_A_d)
+            self.loss_G += lambda_D * (self.loss_G_B_depth + self.loss_G_A_depth)
             lambda_total += 2 * lambda_D
 
         if should["rotation"]:
             # print("rotation loss")
-            device = self.angle_A_pred.device
-            self.loss_G_A_r = self.rotationCriterion(
-                self.angle_A_pred,
-                angles_to_tensors(self.angle_A, one_hot=False).to(device),
+            device = self.A_rotation_pred.device
+            self.loss_G_A_rotation = self.rotationCriterion(
+                self.A_rotation_pred,
+                angles_to_tensors(self.A_rotation_target, one_hot=False).to(device),
             )
-            self.loss_G_B_r = self.rotationCriterion(
-                self.angle_B_pred,
-                angles_to_tensors(self.angle_B, one_hot=False).to(device),
+            self.loss_G_B_rotation = self.rotationCriterion(
+                self.B_rotation_pred,
+                angles_to_tensors(self.B_rotation_target, one_hot=False).to(device),
             )
-            self.loss_G += lambda_R * (self.loss_G_B_r + self.loss_G_A_r)
+            self.loss_G += lambda_R * (self.loss_G_B_rotation + self.loss_G_A_rotation)
             lambda_total += 2 * lambda_R
 
         if should["identity"]:
             # print("identity loss")
             # Identity loss
             assert lambda_idt > 0
-            # G_A should be identity if real_B is fed: ||G_A(B) - B||
-            self.loss_idt_A = (
-                self.criterionIdt(self.idt_A, self.real_B) * lambda_B * lambda_idt
+            # G_A should be identity if B_real is fed: ||G_A(B) - B||
+            self.loss_G_A_idt = (
+                self.criterionIdt(self.A_idt, self.B_real) * lambda_B * lambda_idt
             )
-            # G_B should be identity if real_A is fed: ||G_B(A) - A||
-            self.loss_idt_B = (
-                self.criterionIdt(self.idt_B, self.real_A) * lambda_A * lambda_idt
+            # G_B should be identity if A_real is fed: ||G_B(A) - A||
+            self.loss_G_B_idt = (
+                self.criterionIdt(self.B_idt, self.A_real) * lambda_A * lambda_idt
             )
 
-            self.loss_G += self.loss_idt_A + self.loss_idt_B
+            self.loss_G += self.loss_G_A_idt + self.loss_G_B_idt
             lambda_total += lambda_A * lambda_idt + lambda_B * lambda_idt
 
         if should["gray"]:
-            self.loss_G_gA = 0.1 * self.criterionGAN(
-                self.netD_gA(self.fake_gA), True
-            ) + 0.9 * self.criterionIdt(self.fake_gA, self.real_A)
-            self.loss_G_gB = 0.1 * self.criterionGAN(
-                self.netD_gB(self.fake_gB), True
-            ) + 0.9 * self.criterionIdt(self.fake_gB, self.real_B)
-            self.loss_G += (self.loss_G_gA + self.loss_G_gB) * lambda_G
+            self.loss_G_A_gray = 0.1 * self.criterionGAN(
+                self.netD_A_gray(self.A_gray_pred), True
+            ) + 0.9 * self.criterionIdt(self.A_gray_pred, self.A_real)
+            self.loss_G_B_gray = 0.1 * self.criterionGAN(
+                self.netD_B_gray(self.B_gray_pred), True
+            ) + 0.9 * self.criterionIdt(self.B_gray_pred, self.B_real)
+            self.loss_G += (self.loss_G_A_gray + self.loss_G_B_gray) * lambda_G
             lambda_total += 2 * lambda_G
 
         if should["translation"]:
             # print("translation loss")
             # GAN loss D_A(G_A(A))
-            self.loss_G_A = self.criterionGAN(self.netD_A(self.fake_B), True)
+            self.loss_G_A = self.criterionGAN(self.netD_A(self.B_fake), True)
             # GAN loss D_B(G_B(B))
-            self.loss_G_B = self.criterionGAN(self.netD_B(self.fake_A), True)
+            self.loss_G_B = self.criterionGAN(self.netD_B(self.A_fake), True)
             # Forward cycle loss || G_B(G_A(A)) - A||
-            self.loss_cycle_A = self.criterionCycle(self.rec_A, self.real_A) * lambda_A
+            self.loss_cycle_A = self.criterionCycle(self.A_rec, self.A_real) * lambda_A
             # Backward cycle loss || G_A(G_B(B)) - B||
-            self.loss_cycle_B = self.criterionCycle(self.rec_B, self.real_B) * lambda_B
+            self.loss_cycle_B = self.criterionCycle(self.B_rec, self.B_real) * lambda_B
             # combined loss and calculate gradients
             self.loss_G += (
                 self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B
@@ -652,80 +682,88 @@ class ContinualModel(BaseModel):
             self.loss_G.backward()
 
     def sequential_schedule(self, metrics):
-        r = self.opt.r_acc_threshold
-        if self.__should_compute_rotation:
-            # never check again once we've changed task
-            if metrics["test_A_rot_acc"] > r and metrics["test_B_rot_acc"] > r:
-                self.__should_compute_rotation = False
-                self.__should_compute_depth = True
-                print("\n\n>> Stop rotation ; Start depth <<\n")
-                if self.exp:
-                    self.exp.log_parameter("schedule_start_depth", self.total_iters)
-                    self.exp.log_parameter("schedule_stop_rotation", self.total_iters)
-                return
+        for t in self.tasks:
+            threshold = getattr(self.opt, t.threshold_key)
+            if t.threshold_type == "acc":
+                condition = (
+                    metrics[f"test_A_{t.key}_{t.threshold_type}"] > threshold
+                    and metrics[f"test_A_{t.key}_{t.threshold_type}"] > threshold
+                )
+            else:
+                condition = (
+                    metrics[f"test_A_{t.key}_{t.threshold_type}"] < threshold
+                    and metrics[f"test_A_{t.key}_{t.threshold_type}"] < threshold
+                )
 
-        d = self.opt.d_loss_threshold
-        if self.__should_compute_depth:
-            # never check again once we've changed task
-            if metrics["test_A_loss_d"] < d and metrics["test_B_loss_d"] < d:
-                self.__should_compute_depth = False
-                self.__should_compute_gray = True
-                print("\n\n>> Stop depth ; Start gray <<\n")
-                if self.exp:
-                    self.exp.log_parameter("schedule_stop_depth", self.total_iters)
-                    self.exp.log_parameter("schedule_start_gray", self.total_iters)
-                return
+            if condition:
+                next_key = self.tasks.task_after(t.key)
+                if next_key is not None:
+                    next_keys = [next_key]
+                else:
+                    next_keys = ["identity", "translation"]
 
-        g = self.opt.g_loss_threshold
-        if self.__should_compute_gray:
-            # never check again once we've changed task
-            if metrics["test_A_loss_g"] < g and metrics["test_B_loss_g"] < g:
-                self.__should_compute_gray = False
-                self.__should_compute_identity = True
-                self.__should_compute_translation = True
-                print("\n\n>> Stop gray ; Start translation <<\n")
-                if self.exp:
-                    self.exp.log_parameter(
-                        "schedule_start_translation", self.total_iters
-                    )
-                    self.exp.log_parameter("schedule_stop_gray", self.total_iters)
+                for i, nk in enumerate(next_keys):
+                    setattr(self, f"__should_compute_{t.key}", False)
+                    setattr(self, f"__should_compute_{nk}", True)
+                    print(f"\n\n>> Stop {t.key} ; Start {next_keys} <<\n")
+                    if self.exp:
+                        if i == 0:
+                            self.exp.log_parameter(
+                                f"schedule_stop_{t.key}", self.total_iters
+                            )
+                        self.exp.log_parameter(
+                            f"schedule_start_{nk}", self.total_iters,
+                        )
+                return
 
     def additional_schedule(self, metrics):
-        r = self.opt.r_acc_threshold
-        if metrics["test_A_rot_acc"] > r and metrics["test_B_rot_acc"] > r:
-            self.__should_compute_depth = True
-            print("\n\n>> Start depth <<\n")
-            if self.exp:
-                self.exp.log_parameter("schedule_start_depth", self.total_iters)
+        for t in self.tasks:
+            threshold = getattr(self.opt, t.threshold_key)
+            if t.threshold_type == "acc":
+                condition = (
+                    metrics[f"test_A_{t.key}_{t.threshold_type}"] > threshold
+                    and metrics[f"test_A_{t.key}_{t.threshold_type}"] > threshold
+                )
+            else:
+                condition = (
+                    metrics[f"test_A_{t.key}_{t.threshold_type}"] < threshold
+                    and metrics[f"test_A_{t.key}_{t.threshold_type}"] < threshold
+                )
 
-        g = self.opt.g_loss_threshold
-        if metrics["test_A_loss_g"] < g and metrics["test_B_loss_g"] < g:
-            self.__should_compute_gray = True
-            print("\n\n>> Start Gray <<\n")
-            if self.exp:
-                self.exp.log_parameter("schedule_start_gray", self.total_iters)
-
-        d = self.opt.d_loss_threshold
-        if metrics["test_A_loss_d"] < d and metrics["test_B_loss_d"] < d:
-            self.__should_compute_identity = True
-            self.__should_compute_translation = True
-            print("\n\n>> Start translation <<\n")
-            if self.exp:
-                self.exp.log_parameter("schedule_start_translation", self.total_iters)
+            if condition:
+                next_key = self.tasks.task_after(t.key)
+                if next_key is not None:
+                    next_keys = [next_key]
+                else:
+                    next_keys = ["identity", "translation"]
+                for i, nk in enumerate(next_keys):
+                    setattr(self, f"__should_compute_{nk}", False)
+                    if i == 0:
+                        print(f"\n\n>> Start {next_keys} <<\n")
+                    if self.exp:
+                        self.exp.log_parameter(f"schedule_start_{nk}", self.total_iters)
 
     def representational_schedule(self, metrics):
-        r = self.opt.r_acc_threshold
-        d = self.opt.d_loss_threshold
-        g = self.opt.g_loss_threshold
+
+        task_conditions = True
+        for t in self.tasks:
+            threshold = getattr(self.opt, t.threshold_key)
+            if t.threshold_type == "acc":
+                task_condition = (
+                    metrics[f"test_A_{t.key}_{t.threshold_type}"] > threshold
+                    and metrics[f"test_A_{t.key}_{t.threshold_type}"] > threshold
+                )
+            else:
+                task_condition = (
+                    metrics[f"test_A_{t.key}_{t.threshold_type}"] < threshold
+                    and metrics[f"test_A_{t.key}_{t.threshold_type}"] < threshold
+                )
+            task_conditions = task_conditions and task_condition
+
         i = self.opt.i_loss_threshold
 
         if (
-            metrics["test_A_rot_acc"] > r
-            and metrics["test_B_rot_acc"] > r
-            and metrics["test_A_loss_d"] < d
-            and metrics["test_B_loss_d"] < d
-            and metrics["test_A_loss_g"] < g
-            and metrics["test_B_loss_g"] < g
+            task_conditions
             and metrics["test_loss_idt_A"] < i
             and metrics["test_loss_idt_B"] < i
         ):
@@ -735,38 +773,32 @@ class ContinualModel(BaseModel):
                 self.exp.log_parameter("schedule_stop_representation", self.total_iters)
             self.__should_compute_translation = True
             self.__should_compute_identity = True
-            self.__should_compute_rotation = False
-            self.__should_compute_gray = False
-            self.__should_compute_depth = False
+            for t in self.tasks:
+                setattr(self, f"__should_compute_{t.key}", False)
+
             if not self.repr_is_frozen:
                 if isinstance(self.netG_A, nn.DataParallel):
-                    self.set_requires_grad(
-                        [
-                            self.netG_A.module.encoder,
-                            self.netG_A.module.rotation,
-                            self.netG_A.module.depth,
-                            self.netG_A.module.gray,
-                            self.netG_B.module.encoder,
-                            self.netG_B.module.rotation,
-                            self.netG_B.module.depth,
-                            self.netG_B.module.gray,
-                        ],
-                        requires_grad=False,
-                    )
+                    models = [
+                        self.netG_A.module.encoder,
+                        self.netG_B.module.encoder,
+                    ]
+                    models += [
+                        rgetattr(self, f"netG_{d}.module.{t.module_name}")
+                        for d in ["A", "B"]
+                        for t in self.tasks
+                    ]
+                    self.set_requires_grad(models, requires_grad=False)
                 else:
-                    self.set_requires_grad(
-                        [
-                            self.netG_A.encoder,
-                            self.netG_A.rotation,
-                            self.netG_A.depth,
-                            self.netG_A.gray,
-                            self.netG_B.encoder,
-                            self.netG_B.rotation,
-                            self.netG_B.depth,
-                            self.netG_B.gray,
-                        ],
-                        requires_grad=False,
-                    )
+                    models = [
+                        self.netG_A.encoder,
+                        self.netG_B.encoder,
+                    ]
+                    models += [
+                        rgetattr(self, f"netG_{d}.{t.module_name}")
+                        for d in ["A", "B"]
+                        for t in self.tasks
+                    ]
+                    self.set_requires_grad(models, requires_grad=False)
                 self.repr_is_frozen = True
 
     def update_ref_encoder(self):
@@ -807,33 +839,31 @@ class ContinualModel(BaseModel):
 
     def init_schedule(self):
         if self.opt.task_schedule == "parallel":
-            self.__should_compute_rotation = True
-            self.__should_compute_depth = True
-            self.__should_compute_gray = True
+            for t in self.tasks:
+                setattr(self, f"__should_compute_{t.key}", True)
             self.__should_compute_identity = True
             self.__should_compute_translation = True
             self.update_task_schedule = self.parallel_schedule
 
         elif self.opt.task_schedule == "sequential":
-            self.__should_compute_rotation = True
-            self.__should_compute_depth = False
-            self.__should_compute_gray = False
+            for t in self.tasks:
+                setattr(self, f"__should_compute_{t.key}", False)
+            setattr(self, f"__should_compute_{self.tasks.keys[0]}", True)
             self.__should_compute_identity = False
             self.__should_compute_translation = False
             self.update_task_schedule = self.sequential_schedule
 
         elif self.opt.task_schedule in {"additional", "continual"}:
-            self.__should_compute_rotation = True
-            self.__should_compute_depth = False
-            self.__should_compute_gray = False
+            for t in self.tasks:
+                setattr(self, f"__should_compute_{t.key}", False)
+            setattr(self, f"__should_compute_{self.tasks.keys[0]}", True)
             self.__should_compute_identity = False
             self.__should_compute_translation = False
             self.update_task_schedule = self.additional_schedule
 
         elif self.opt.task_schedule == "representational":
-            self.__should_compute_rotation = True
-            self.__should_compute_depth = True
-            self.__should_compute_gray = True
+            for t in self.tasks:
+                setattr(self, f"__should_compute_{t.key}", True)
             self.__should_compute_identity = True
             self.__should_compute_translation = False
             self.repr_is_frozen = False
@@ -843,6 +873,7 @@ class ContinualModel(BaseModel):
             raise ValueError("Unknown schedule {}".format(self.opt.task_schedule))
 
     def no_grad(self, has_D=False):
+        raise NotImplementedError("using no_grad function which is deprecated")
         models = [self.netG_A, self.netG_B]
         if has_D:
             models += [self.netD_A, self.netD_B]
@@ -855,26 +886,20 @@ class ContinualModel(BaseModel):
         self.forward()  # compute fake images and reconstruction images.
         # G_A and G_B
         self.set_requires_grad(
-            [self.netD_A, self.netD_B], False
+            [
+                self.get(d)
+                for d in dir(self)
+                if hasattr(self, d) and d.startswith("netD_")
+            ],
+            False,
         )  # Ds require no gradients when optimizing Gs
         self.optimizer_G.zero_grad()  # set G_A and G_B's gradients to zero
         self.backward_G()  # calculate gradients for G_A and G_B
         self.optimizer_G.step()  # update G_A and G_B's weights
         # D_A and D_B
-        back_d = False
-        if self.should_compute("translation"):
-            self.set_requires_grad([self.netD_A, self.netD_B], True)
-            back_d = True
-        if self.should_compute("gray"):
-            self.set_requires_grad([self.netD_gA, self.netD_gB], True)
-            back_d = True
-        if back_d:
-            self.optimizer_D.zero_grad()  # set D_A and D_B's gradients to zero
-            if self.should_compute("translation"):
-                self.backward_D_A()  # calculate gradients for D_A
-                self.backward_D_B()  # calculate gradients for D_B
-            if self.should_compute("gray"):
-                self.backward_D_gA()  # calculate gradients for D_A
-                self.backward_D_gB()  # calculate gradients for D_B
-            self.optimizer_D.step()  # update D_A and D_B's weights
-            self.update_visuals()
+        self.backward_D()
+
+    def get(self, key):
+        return getattr(self, key)
+
+#TODO eval and data loading

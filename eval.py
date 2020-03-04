@@ -95,15 +95,15 @@ def eval(
             # -----  Translation  -----
             # -------------------------
             if len(test_images["A"]["real"]) < nb_ims // model.opt.batch_size:
-                test_images["A"]["real"].append(model.real_A.cpu().numpy())
-                test_images["A"]["cycle"].append(model.rec_A.detach().cpu().numpy())
-                test_images["A"]["idt"].append(model.idt_B.detach().cpu().numpy())
-                test_images["A"]["fake"].append(model.fake_B.detach().cpu().numpy())
+                test_images["A"]["real"].append(model.A_real.cpu().numpy())
+                test_images["A"]["cycle"].append(model.A_rec.detach().cpu().numpy())
+                test_images["A"]["idt"].append(model.B_idt.detach().cpu().numpy())
+                test_images["A"]["fake"].append(model.B_fake.detach().cpu().numpy())
 
-                test_images["B"]["real"].append(model.real_B.cpu().numpy())
-                test_images["B"]["cycle"].append(model.rec_B.detach().cpu().numpy())
-                test_images["B"]["idt"].append(model.idt_A.detach().cpu().numpy())
-                test_images["B"]["fake"].append(model.fake_A.detach().cpu().numpy())
+                test_images["B"]["real"].append(model.B_real.cpu().numpy())
+                test_images["B"]["cycle"].append(model.B_rec.detach().cpu().numpy())
+                test_images["B"]["idt"].append(model.A_idt.detach().cpu().numpy())
+                test_images["B"]["fake"].append(model.A_fake.detach().cpu().numpy())
             else:
                 ignore.add("translation")
                 if "translation" in force:
