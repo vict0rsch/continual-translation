@@ -23,6 +23,10 @@ class BaseTask:
         self.eval_acc = False
         self.log_type = "acc"
         self.output_dim = 0
+        self.loader_resize_target = True
+        self.loader_resize_input = True
+        self.loader_flip = True
+        self.input_key = ""
 
     def setup(self):
 
@@ -52,6 +56,9 @@ class BaseTask:
             assert self.output_dim > 0
 
         self.threshold_key = f"{self.key}_{self.threshold_type}_threshold"
+
+        if not self.input_key:
+            self.input_key = self.key
 
     def __str__(self):
         s = self.__class__.__name__ + ":\n"
@@ -94,6 +101,10 @@ class RotationTask(BaseTask):
         self.eval_visuals_target = False
         self.eval_acc = True
         self.log_type = "acc"
+        self.loader_resize_target = False
+        self.loader_resize_input = True
+        self.output_dim = 4
+        self.loader_flip = False
 
 
 class DepthTask(BaseTask):
@@ -110,6 +121,7 @@ class DepthTask(BaseTask):
         self.eval_visuals_target = True
         self.eval_acc = False
         self.log_type = "vis"
+        self.input_key = "real"
 
 
 class AuxiliaryTasks:
@@ -163,8 +175,10 @@ class AuxiliaryTasks:
         self._index += 1
         return t
 
-    def __getitem__(self, i):
-        return self.tasks[self.keys[i]]
+    def __getitem__(self, k):
+        if isinstance(k, int):
+            return self.tasks[self.keys[k]]
+        return self.tasks[k]
 
 
 class T:

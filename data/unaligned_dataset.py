@@ -5,12 +5,19 @@ from PIL import Image
 import random
 from pathlib import Path
 from copy import copy
+import sys
+from pathlib import Path
+
+sys.path.append(str(Path(__file__).resolve().parent))
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+from models.task import AuxiliaryTasks
 
 
 class UnalignedDataset(BaseDataset):
     """
     This dataset class can load unaligned/unpaired datasets.
-    It requires two directories to host training images from domain A '/path/to/data/trainA'
+    It requires two directories to host training images
+    from domain A '/path/to/data/trainA'
     and from domain B '/path/to/data/trainB' respectively.
     You can train the model with the dataset flag '--dataroot /path/to/data'.
     Similarly, you need to prepare two directories:
@@ -20,9 +27,12 @@ class UnalignedDataset(BaseDataset):
     def __init__(self, opt):
         """Initialize this dataset class.
         Parameters:
-            opt (Option class) -- stores all the experiment flags; needs to be a subclass of BaseOptions
+            opt (Option class) -- stores all the experiment flags;
+                needs to be a subclass of BaseOptions
         """
         BaseDataset.__init__(self, opt)
+
+        self.tasks = AuxiliaryTasks(opt.auxiliary_tasks)
 
         self.load_depth = self.opt.netG == "continual"
         self.load_rotation = self.opt.netG == "continual"
@@ -54,10 +64,10 @@ class UnalignedDataset(BaseDataset):
             self.transform_B = get_transform(self.opt, grayscale=(output_nc == 1))
         else:
             self.transform_A = get_dic_transform(
-                self.opt, grayscale=False, depth=True, rotation=True, gray=True
+                self.opt, grayscale=False, tasks=self.tasks
             )
             self.transform_B = get_dic_transform(
-                self.opt, grayscale=False, depth=True, rotation=True, gray=True
+                self.opt, grayscale=False, tasks=self.tasks
             )
 
     def __getitem__(self, index):
@@ -99,16 +109,26 @@ class UnalignedDataset(BaseDataset):
             Path(B_path).parent / "depths" / (Path(B_path).stem + ".png")
         ).convert("L")
 
-        im_dict_A = {"A": A_img, "dA": A_d_img, "rA": A_img, "gA": A_img}
+        im_dict_A = {
+            "A_real": A_img,
+            "A_depth_target": A_d_img,
+            "A_rotation": A_img,
+            "A_gray": A_img,
+        }
         ims_A = self.transform_A(im_dict_A)
-        ims_A["angleA"] = copy(ims_A["angle"])
-        del ims_A["angle"]
+        ims_A["A_rotation_target"] = copy(ims_A["rotation_target"])
+        del ims_A["rotation_target"]
         imgs.update(ims_A)
 
-        im_dict_B = {"B": B_img, "dB": B_d_img, "rB": B_img, "gB": B_img}
+        im_dict_B = {
+            "B_real": B_img,
+            "B_depth_target": B_d_img,
+            "B_rotation": B_img,
+            "B_gray": B_img,
+        }
         ims_B = self.transform_B(im_dict_B)
-        ims_B["angleB"] = copy(ims_B["angle"])
-        del ims_B["angle"]
+        ims_B["B_rotation_target"] = copy(ims_B["rotation_target"])
+        del ims_B["rotation_target"]
         imgs.update(ims_B)
 
         return imgs

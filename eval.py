@@ -54,7 +54,7 @@ def eval(
 
                 for t in model.tasks:
                     for domain in "AB":
-                        for dtype in data[t][domain]:
+                        for dtype in data[t.key][domain]:
                             value = list(
                                 model.get(f"{domain}_{t.key}_{dtype}").cpu().numpy()
                             )
@@ -62,11 +62,11 @@ def eval(
                                 value = [np.argmax(v) for v in value]
                             else:
                                 if (
-                                    len(data[t][domain][dtype])
+                                    len(data[t.key][domain][dtype])
                                     >= nb_ims // model.opt.batch_size
                                 ):
                                     value = []
-                            data[t][domain][dtype] += value
+                            data[t.key][domain][dtype] += value
 
             # -------------------------
             # -----  Translation  -----

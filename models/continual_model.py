@@ -109,19 +109,19 @@ class ContinualModel(BaseModel):
             #
             # representational :  <rotation, depth, identity> then <translation>
             parser.add_argument(
-                "--r_acc_threshold",
+                "--rotation_acc_threshold",
                 type=float,
                 default=0.2,
                 help="minimal rotation classification loss to switch task",
             )
             parser.add_argument(
-                "--d_loss_threshold",
+                "--depth_loss_threshold",
                 type=float,
                 default=0.5,
                 help="minimal depth estimation loss to switch task",
             )
             parser.add_argument(
-                "--g_loss_threshold",
+                "--gray_loss_threshold",
                 type=float,
                 default=0.5,
                 help="minimal gray loss to switch task",
@@ -133,7 +133,7 @@ class ContinualModel(BaseModel):
                 help="minimal identity loss to switch task (representational only)",
             )
             parser.add_argument(
-                "--lr_rot",
+                "--lr_rotation",
                 type=float,
                 default=0.0002,
                 help="minimal identity loss to switch task (representational only)",
@@ -153,6 +153,13 @@ class ContinualModel(BaseModel):
                 default=1.0,
                 help="Exp. moving average coefficient: ref = a * new + (1 - a) * old",
             )
+            parser.add_argument(
+                "--auxiliary_tasks",
+                action="store",
+                type=str,
+                nargs="*",
+                default=["rotation", "gray", "depth"],
+            )
 
         return parser
 
@@ -164,7 +171,7 @@ class ContinualModel(BaseModel):
         """
         BaseModel.__init__(self, opt)
 
-        self.tasks = AuxiliaryTasks(["rotation", "depth", "gray"])
+        self.tasks = AuxiliaryTasks(opt.auxiliary_tasks)
         # specify the training losses you want to print out.
         # The training/test scripts will call <BaseModel.get_current_losses>
         self.loss_names = [
@@ -297,6 +304,7 @@ class ContinualModel(BaseModel):
             # define loss functions
             self.criterionGAN = networks.GANLoss(opt.gan_mode).to(self.device)
             # define GAN loss.
+            self.criterionGray = torch.nn.L1Loss()
             self.criterionCycle = torch.nn.L1Loss()
             self.criterionIdt = torch.nn.L1Loss()
             # initialize optimizers; schedulers will be automatically created
@@ -378,19 +386,19 @@ class ContinualModel(BaseModel):
         The option 'direction' can be used to swap domain A and domain B.
         """
         AtoB = self.opt.direction == "AtoB"
-        self.A_real = input["A" if AtoB else "B"].to(self.device)
+        self.A_real = input["A_real" if AtoB else "B_real"].to(self.device)
         self.image_paths_A = input["A_paths" if AtoB else "B_paths"]
-        self.B_real = input["B" if AtoB else "A"].to(self.device)
+        self.B_real = input["B_real" if AtoB else "A_real"].to(self.device)
         self.image_paths_B = input["B_paths" if AtoB else "A_paths"]
 
         for t in self.tasks:
             # ------------------------
             # -----  Input data  -----
             # ------------------------
-            if ("A_" + t.key) in input and ("B_" + t.key) in input:
+            if ("A_" + t.input_key) in input and ("B_" + t.input_key) in input:
                 inputs = [
-                    input["A_" + t.key if AtoB else "B_" + t.key],
-                    input["B_" + t.key if AtoB else "A_" + t.key],
+                    input["A_" + t.input_key if AtoB else "B_" + t.input_key],
+                    input["B_" + t.input_key if AtoB else "A_" + t.input_key],
                 ]
                 for i, inp in enumerate(inputs):
                     inputs[i] = inp.to(self.device).float()
@@ -417,8 +425,8 @@ class ContinualModel(BaseModel):
                 for i, tar in enumerate(targets):
                     targets[i] = tar.to(self.device)
 
-                if t.key == "depth":
-                    for i, target in targets:
+                if t.key == "rotation":
+                    for i, target in enumerate(targets):
                         targets[i] = target.view(-1)
 
                 setattr(self, "A_" + t.target_key, targets[0])
@@ -519,8 +527,8 @@ class ContinualModel(BaseModel):
                         setattr(self, f"{domain}_z_{t.key}", data)
                 else:
                     data = {
-                        "A": self.A_real,
-                        "B": self.B_real,
+                        "A": self.A_z,
+                        "B": self.B_z,
                     }
 
                 for domain in ["A", "B"]:
@@ -560,7 +568,7 @@ class ContinualModel(BaseModel):
             for domain in ["A", "B"]:
                 netD = self.get(f"netD_{domain}_{t.key}")
                 self.set_requires_grad([netD], True)
-                real = self.get(f"{domain}_{t.key}")
+                real = self.get(f"{domain}_{t.target_key}")
                 fake = self.get(f"{domain}_{t.key}_pred")
                 loss = self.backward_D_basic(netD, real, fake)
                 setattr(self, f"loss_D_{domain}_{t.key}", loss)
@@ -612,10 +620,10 @@ class ContinualModel(BaseModel):
             # print("depth loss")
             device = self.A_depth_pred.device
             self.loss_G_A_depth = self.depthCriterion(
-                self.A_depth_pred, self.A_depth.to(device)
+                self.A_depth_pred, self.A_depth_target.to(device)
             )
             self.loss_G_B_depth = self.depthCriterion(
-                self.B_depth_pred, self.B_depth.to(device)
+                self.B_depth_pred, self.B_depth_target.to(device)
             )
             self.loss_G += lambda_D * (self.loss_G_B_depth + self.loss_G_A_depth)
             lambda_total += 2 * lambda_D
@@ -653,10 +661,10 @@ class ContinualModel(BaseModel):
         if should["gray"]:
             self.loss_G_A_gray = 0.1 * self.criterionGAN(
                 self.netD_A_gray(self.A_gray_pred), True
-            ) + 0.9 * self.criterionIdt(self.A_gray_pred, self.A_real)
+            ) + 0.9 * self.criterionGray(self.A_gray_pred, self.A_real)
             self.loss_G_B_gray = 0.1 * self.criterionGAN(
                 self.netD_B_gray(self.B_gray_pred), True
-            ) + 0.9 * self.criterionIdt(self.B_gray_pred, self.B_real)
+            ) + 0.9 * self.criterionGray(self.B_gray_pred, self.B_real)
             self.loss_G += (self.loss_G_A_gray + self.loss_G_B_gray) * lambda_G
             lambda_total += 2 * lambda_G
 
@@ -902,4 +910,5 @@ class ContinualModel(BaseModel):
     def get(self, key):
         return getattr(self, key)
 
-#TODO eval and data loading
+
+# TODO eval and data loading
