@@ -766,13 +766,9 @@ class ContinualModel(BaseModel):
                 )
             task_conditions = task_conditions and task_condition
 
-        i = self.opt.i_loss_threshold
+        # i = self.opt.i_loss_threshold
 
-        if (
-            task_conditions
-            and metrics["test_loss_idt_A"] < i
-            and metrics["test_loss_idt_B"] < i
-        ):
+        if task_conditions:
             print("\n\n>> Start translation <<\n")
             if self.exp:
                 self.exp.log_parameter("schedule_start_translation", self.total_iters)
@@ -870,7 +866,7 @@ class ContinualModel(BaseModel):
         elif self.opt.task_schedule == "representational":
             for t in self.tasks:
                 setattr(self, f"_should_compute_{t.key}", True)
-            self._should_compute_identity = True
+            self._should_compute_identity = False
             self._should_compute_translation = False
             self.repr_is_frozen = False
             self.update_task_schedule = self.representational_schedule
