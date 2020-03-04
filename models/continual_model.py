@@ -483,8 +483,8 @@ class ContinualModel(BaseModel):
                         setattr(self, f"{domain}_z_{t.key}", data)
                 else:
                     data = {
-                        "A": self.A_real,
-                        "B": self.B_real,
+                        "A": self.A_z,
+                        "B": self.B_z,
                     }
 
                 for domain in ["A", "B"]:
