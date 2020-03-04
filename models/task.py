@@ -18,6 +18,11 @@ class BaseTask:
         self.no_G = False
         self.target_key = None
         self.has_target = False
+        self.eval_visuals_pred = False
+        self.eval_visuals_target = False
+        self.eval_acc = False
+        self.log_type = "acc"
+        self.output_dim = 0
 
     def setup(self):
 
@@ -25,6 +30,7 @@ class BaseTask:
         assert self.key not in {"idt", "z", "fake", "rec"}
         assert self.lambda_key not in {"idt", "A", "B"}
         assert self.threshold_type in {"acc", "loss"}
+        assert self.log_type in {"acc", "vis"}
 
         if not self.module_name:
             self.module_name = self.key
@@ -41,6 +47,9 @@ class BaseTask:
 
         if self.has_target and self.target_key is None:
             self.target_key = self.key + "_target"
+
+        if self.log_type == "acc":
+            assert self.output_dim > 0
 
         self.threshold_key = f"{self.key}_{self.threshold_type}_threshold"
 
@@ -66,6 +75,10 @@ class GrayTask(BaseTask):
         self.priority = 2
         self.needs_z = True
         self.lambda_key = "G"
+        self.eval_visuals_pred = True
+        self.eval_visuals_target = False
+        self.eval_acc = False
+        self.log_type = "vis"
 
 
 class RotationTask(BaseTask):
@@ -77,6 +90,10 @@ class RotationTask(BaseTask):
         self.priority = 0
         self.needs_z = True
         self.lambda_key = "R"
+        self.eval_visuals_pred = False
+        self.eval_visuals_target = False
+        self.eval_acc = True
+        self.log_type = "acc"
 
 
 class DepthTask(BaseTask):
@@ -89,6 +106,10 @@ class DepthTask(BaseTask):
         self.priority = 1
         self.needs_z = False
         self.lambda_key = "D"
+        self.eval_visuals_pred = True
+        self.eval_visuals_target = True
+        self.eval_acc = False
+        self.log_type = "vis"
 
 
 class AuxiliaryTasks:
