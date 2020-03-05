@@ -391,6 +391,8 @@ class ContinualModel(BaseModel):
         self.B_real = input["B_real" if AtoB else "A_real"].to(self.device)
         self.image_paths_B = input["B_paths" if AtoB else "A_paths"]
 
+        self.current_input = input
+
         for t in self.tasks:
             # ------------------------
             # -----  Input data  -----
@@ -413,9 +415,7 @@ class ContinualModel(BaseModel):
             # -------------------------
             # -----  Target data  -----
             # -------------------------
-            if ("A_" + t.target_key) in input and not hasattr(
-                self, "A_" + t.target_key
-            ):
+            if ("A_" + t.target_key) in input:
                 targets = [
                     input["A_" + t.target_key if AtoB else "B_" + t.target_key],
                     input["B_" + t.target_key if AtoB else "A_" + t.target_key],
@@ -615,16 +615,23 @@ class ContinualModel(BaseModel):
 
         self.loss_G = 0
         if should["depth"]:
-            # print("depth loss")
-            device = self.A_depth_pred.device
-            self.loss_G_A_depth = self.depthCriterion(
-                self.A_depth_pred, self.A_depth_target.to(device)
-            )
-            self.loss_G_B_depth = self.depthCriterion(
-                self.B_depth_pred, self.B_depth_target.to(device)
-            )
-            self.loss_G += lambda_D * (self.loss_G_B_depth + self.loss_G_A_depth)
-            lambda_total += 2 * lambda_D
+            try:
+                # print("depth loss")
+                device = self.A_depth_pred.device
+                self.loss_G_A_depth = self.depthCriterion(
+                    self.A_depth_pred, self.A_depth_target.to(device).float()
+                )
+                self.loss_G_B_depth = self.depthCriterion(
+                    self.B_depth_pred, self.B_depth_target.to(device).float()
+                )
+                self.loss_G += lambda_D * (self.loss_G_B_depth + self.loss_G_A_depth)
+                lambda_total += 2 * lambda_D
+            except RuntimeError as e:
+                print()
+                print(e)
+                import pdb
+
+                pdb.set_trace()
 
         if should["rotation"]:
             # print("rotation loss")
@@ -756,13 +763,13 @@ class ContinualModel(BaseModel):
             threshold = getattr(self.opt, t.threshold_key)
             if t.threshold_type == "acc":
                 task_condition = (
-                    metrics[f"test_A_{t.key}_{t.threshold_type}"] > threshold
-                    and metrics[f"test_A_{t.key}_{t.threshold_type}"] > threshold
+                    metrics[f"test_G_A_{t.key}_{t.threshold_type}"] > threshold
+                    and metrics[f"test_G_B_{t.key}_{t.threshold_type}"] > threshold
                 )
             else:
                 task_condition = (
-                    metrics[f"test_A_{t.key}_{t.threshold_type}"] < threshold
-                    and metrics[f"test_A_{t.key}_{t.threshold_type}"] < threshold
+                    metrics[f"test_G_A_{t.key}_{t.threshold_type}"] < threshold
+                    and metrics[f"test_G_B_{t.key}_{t.threshold_type}"] < threshold
                 )
             task_conditions = task_conditions and task_condition
 
@@ -903,6 +910,3 @@ class ContinualModel(BaseModel):
 
     def get(self, key):
         return getattr(self, key)
-
-
-# TODO eval and data loading

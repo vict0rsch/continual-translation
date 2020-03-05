@@ -34,7 +34,7 @@ if __name__ == "__main__":
     test_opt.phase = "test"
     test_dataset = create_dataset(test_opt)
 
-    g_step = True
+    g_step = False
     eval_model = False
     show_rot = False
 

@@ -65,23 +65,6 @@ class BaseTask:
         return s
 
 
-class GrayTask(BaseTask):
-    def __init__(self):
-        super().__init__()
-        self.key = "gray"
-        self.needs_D = True
-        self.needs_lr = True
-        self.target_key = "real"
-        self.threshold_type = "acc"
-        self.priority = 2
-        self.needs_z = True
-        self.lambda_key = "G"
-        self.eval_visuals_pred = True
-        self.eval_visuals_target = False
-        self.eval_acc = False
-        self.log_type = "vis"
-
-
 class RotationTask(BaseTask):
     def __init__(self):
         super().__init__()
@@ -94,6 +77,7 @@ class RotationTask(BaseTask):
         self.eval_visuals_target = False
         self.eval_acc = True
         self.log_type = "acc"
+        self.threshold_type = "acc"
         self.loader_resize_target = False
         self.loader_resize_input = True
         self.output_dim = 4
@@ -114,6 +98,23 @@ class DepthTask(BaseTask):
         self.eval_acc = False
         self.log_type = "vis"
         self.input_key = "real"
+
+
+class GrayTask(BaseTask):
+    def __init__(self):
+        super().__init__()
+        self.key = "gray"
+        self.needs_D = True
+        self.needs_lr = True
+        self.target_key = "real"
+        self.threshold_type = "loss"
+        self.priority = 2
+        self.needs_z = True
+        self.lambda_key = "G"
+        self.eval_visuals_pred = True
+        self.eval_visuals_target = False
+        self.eval_acc = False
+        self.log_type = "vis"
 
 
 class AuxiliaryTasks:
@@ -160,12 +161,13 @@ class AuxiliaryTasks:
         return self
 
     def __next__(self):
-        if self._index == len(self.keys):
+        print(self._index)
+        try:
+            self._index += 1
+            return self.tasks[self.keys[self._index - 1]]
+        except IndexError:
             self._index = 0
             raise StopIteration
-        t = self.tasks[self.keys[self._index]]
-        self._index += 1
-        return t
 
     def __getitem__(self, k):
         if isinstance(k, int):
