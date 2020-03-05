@@ -161,7 +161,6 @@ class AuxiliaryTasks:
         return self
 
     def __next__(self):
-        print(self._index)
         try:
             self._index += 1
             return self.tasks[self.keys[self._index - 1]]
