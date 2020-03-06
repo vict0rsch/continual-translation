@@ -42,14 +42,13 @@ def eval(
 
             force |= set(model.tasks.keys)
 
-        print()
         losses = {
             k: []
             for k in dir(model)
             if k.startswith("loss_") and isinstance(getattr(model, k), torch.Tensor)
         }
         for i, b in enumerate(dataset):
-            print(f"\rEval batch {i}", end="")
+            # print(f"\rEval batch {i}", end="")
 
             model.set_input(b)
             model.forward(force=force)
@@ -120,8 +119,6 @@ def eval(
         / data["translation"]["A"]["real"].shape[0]
     )
     im_size = data["translation"]["A"]["real"].shape[0]
-
-    print()
 
     ims = {"A": None, "B": None}
 

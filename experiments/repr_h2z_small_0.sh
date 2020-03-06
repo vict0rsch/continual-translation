@@ -38,7 +38,7 @@ python train.py \
     --display_freq 5000 \
     --batch_size 4 \
     --netG "continual" \
-    --git_hash="9ae00b02e57ffb213a6b8ee4df0ad1a4e55cc3ba" \
+    --git_hash="a8ce27016e3a8b8c4bc61128630384c275585dd3" \
     --name "repr_continual_small_0" \
     --task_schedule "representational" \
     --message "repr h2z exp with gray & SMALL | repr_continual_small_0.sh" \

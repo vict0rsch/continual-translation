@@ -697,16 +697,14 @@ class ContinualModel(BaseModel):
     def sequential_schedule(self, metrics):
         for t in self.tasks:
             threshold = getattr(self.opt, t.threshold_key)
+            metric_A = metrics[f"test_A_{t.key}_{t.threshold_type}"]
+            metric_B = metrics[f"test_B_{t.key}_{t.threshold_type}"]
+            s = f"{t.key}_{t.threshold_type} : "
+            s += f"{metric_A} & {metric_B} vs {threshold}\n"
             if t.threshold_type == "acc":
-                condition = (
-                    metrics[f"test_A_{t.key}_{t.threshold_type}"] > threshold
-                    and metrics[f"test_A_{t.key}_{t.threshold_type}"] > threshold
-                )
+                condition = metric_A > threshold and metric_B > threshold
             else:
-                condition = (
-                    metrics[f"test_A_{t.key}_{t.threshold_type}"] < threshold
-                    and metrics[f"test_A_{t.key}_{t.threshold_type}"] < threshold
-                )
+                condition = metric_A < threshold and metric_B < threshold
 
             if condition:
                 next_key = self.tasks.task_after(t.key)
@@ -728,20 +726,20 @@ class ContinualModel(BaseModel):
                             f"schedule_start_{nk}", self.total_iters,
                         )
                 return
+            else:
+                print("No schedule update: " + s)
 
     def additional_schedule(self, metrics):
         for t in self.tasks:
             threshold = getattr(self.opt, t.threshold_key)
+            metric_A = metrics[f"test_A_{t.key}_{t.threshold_type}"]
+            metric_B = metrics[f"test_B_{t.key}_{t.threshold_type}"]
+            s = f"{t.key}_{t.threshold_type} : "
+            s += f"{metric_A} & {metric_B} vs {threshold}\n"
             if t.threshold_type == "acc":
-                condition = (
-                    metrics[f"test_A_{t.key}_{t.threshold_type}"] > threshold
-                    and metrics[f"test_A_{t.key}_{t.threshold_type}"] > threshold
-                )
+                condition = metric_A > threshold and metric_B > threshold
             else:
-                condition = (
-                    metrics[f"test_A_{t.key}_{t.threshold_type}"] < threshold
-                    and metrics[f"test_A_{t.key}_{t.threshold_type}"] < threshold
-                )
+                condition = metric_A < threshold and metric_B < threshold
 
             if condition:
                 next_key = self.tasks.task_after(t.key)
@@ -755,22 +753,23 @@ class ContinualModel(BaseModel):
                         print(f"\n\n>> Start {next_keys} <<\n")
                     if self.exp:
                         self.exp.log_parameter(f"schedule_start_{nk}", self.total_iters)
+            else:
+                print("No update for " + s)
 
     def representational_schedule(self, metrics):
 
         task_conditions = True
+        s = ""
         for t in self.tasks:
             threshold = getattr(self.opt, t.threshold_key)
+            metric_A = metrics[f"test_G_A_{t.key}_{t.threshold_type}"]
+            metric_B = metrics[f"test_G_B_{t.key}_{t.threshold_type}"]
+            s += f"{t.key}_{t.threshold_type} : "
+            s += f"{metric_A} & {metric_B} vs {threshold}\n"
             if t.threshold_type == "acc":
-                task_condition = (
-                    metrics[f"test_G_A_{t.key}_{t.threshold_type}"] > threshold
-                    and metrics[f"test_G_B_{t.key}_{t.threshold_type}"] > threshold
-                )
+                task_condition = metric_A > threshold and metric_B > threshold
             else:
-                task_condition = (
-                    metrics[f"test_G_A_{t.key}_{t.threshold_type}"] < threshold
-                    and metrics[f"test_G_B_{t.key}_{t.threshold_type}"] < threshold
-                )
+                task_condition = metric_A < threshold and metric_B < threshold
             task_conditions = task_conditions and task_condition
 
         # i = self.opt.i_loss_threshold
@@ -809,6 +808,8 @@ class ContinualModel(BaseModel):
                     ]
                     self.set_requires_grad(models, requires_grad=False)
                 self.repr_is_frozen = True
+        else:
+            print("No schedule update:\n" + s)
 
     def update_ref_encoder(self):
         alpha = self.opt.encoder_merge_ratio

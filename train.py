@@ -28,35 +28,54 @@ import os
 from collections import deque
 
 if __name__ == "__main__":
+
+    # ---------------------
+    # -----  Options  -----
+    # ---------------------
     opt = TrainOptions().parse()  # get training options
-    # create a dataset given opt.dataset_mode and other options
-    dataset = create_dataset(opt)
     test_opt = copy(opt)
     test_opt.phase = "test"
     test_opt.serial_batches = True
+
+    # ----------------------
+    # -----  Datasets  -----
+    # ----------------------
+    dataset = create_dataset(opt)
     test_dataset = create_dataset(test_opt)
     dataset_size = len(dataset)  # get the number of images in the dataset.
     print("The number of training images = %d" % dataset_size)
-    exp = comet_ml.Experiment(project_name="continual-translation", auto_metric_logging=False)
-    exp.log_parameters(dict(vars(opt)))
-    if "message" in opt:
-        exp.log_text(opt.message)
 
+    # ------------------------------
+    # -----  Comet Experiment  -----
+    # ------------------------------
+    exp = comet_ml.Experiment(
+        project_name="continual-translation", auto_metric_logging=False
+    )
+    exp.log_parameters(dict(vars(opt)))
     exp.add_tag(Path(opt.dataroot).name)
     exp.add_tag(opt.model)
     exp.log_parameter("slurm_job_id", os.environ.get("SLURM_JOB_ID", ""))
+    if "message" in opt:
+        exp.log_text(opt.message)
     if "task_schedule" in opt:
         exp.add_tag(opt.task_schedule)
+    if "small_data" in opt and opt.small_data > 0:
+        exp.add_tag("small")
 
+    # -------------------
+    # -----  Model  -----
+    # -------------------
     model = create_model(opt)  # create a model given opt.model and other options
     model.exp = exp
     model.setup(opt)  # regular setup: load and print networks; create schedulers
-    # create a visualizer that display/save images and plots
-    total_iters = 0  # the total number of training iterations
-    print("starting")
 
+    # ------------------------
+    # -----  Iterations  -----
+    # ------------------------
+    total_iters = 0  # the total number of training iterations
     iter_times = deque(maxlen=15)
     iter_times.append(1)
+    print("starting")
 
     for epoch in range(opt.epoch_count, opt.n_epochs + opt.n_epochs_decay + 1):
         # outer loop for different epochs; we save the model by <epoch_count>,
@@ -73,9 +92,15 @@ if __name__ == "__main__":
             total_iters += opt.batch_size
             epoch_iter += opt.batch_size
             repr_freeze = getattr(model, "repr_is_frozen", False)
+
+            # ------------------------
+            # -----  Train Step  -----
+            # ------------------------
             model.total_iters = total_iters
-            model.set_input(data)  # unpack data from dataset and apply preprocessing
-            model.optimize_parameters()  # calculate loss functions, get gradients, update network weights
+            # unpack data from dataset and apply preprocessing
+            model.set_input(data)
+            # calculate loss functions, get gradients, update network weights
+            model.optimize_parameters()
 
             iter_times.append((time.time() - iter_start_time) / opt.batch_size)
             # ------------------------
@@ -88,21 +113,23 @@ if __name__ == "__main__":
                 if repr_just_froze:
                     exp.log_parameter("freezing_step", total_iters)
 
+            # print training losses and save logging information to the disk
             if total_iters % opt.print_freq == 0:
-                # print training losses and save logging information to the disk
                 losses = model.get_current_losses()
                 t_comp = (time.time() - iter_start_time) / opt.batch_size
                 exp.log_metrics(losses, step=total_iters)
                 exp.log_metric("sample_time", np.mean(iter_times))
 
+            # cache our latest model every <save_latest_freq> iterations
             if total_iters % opt.save_latest_freq == 0:
-                # cache our latest model every <save_latest_freq> iterations
                 print(
                     "saving the latest model (epoch %d, total_iters %d)"
                     % (epoch, total_iters)
                 )
                 save_suffix = "iter_%d" % total_iters if opt.save_by_iter else "latest"
                 model.save_networks(save_suffix)
+
+            # stdout print
             if i % 50 == 0:
                 print(
                     "Iter {} ({}) | {:.2f}\r".format(
