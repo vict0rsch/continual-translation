@@ -6,6 +6,13 @@ from data.unaligned_dataset import UnalignedDataset
 from copy import deepcopy
 
 
+def swap_domain(domain):
+    assert domain in {"A", "B"}
+    if domain == "A":
+        return "B"
+    return "A"
+
+
 def eval(
     model: ContinualModel,
     dataset: UnalignedDataset,
@@ -18,16 +25,16 @@ def eval(
     with torch.no_grad():
         data = {
             "translation": {
-                "A": {"cycle": [], "idt": [], "real": [], "fake": []},
-                "B": {"cycle": [], "idt": [], "real": [], "fake": []},
+                "A": {"rec": None, "idt": None, "real": None, "fake": None},
+                "B": {"rec": None, "idt": None, "real": None, "fake": None},
             }
         }
         for t in model.tasks:
             tmp = {}
             if t.eval_visuals_pred or t.log_type == "acc":
-                tmp["pred"] = []
+                tmp["pred"] = None
             if t.eval_visuals_target or t.log_type == "acc":
-                tmp["target"] = []
+                tmp["target"] = None
             data[t.key] = {domain: deepcopy(tmp) for domain in "AB"}
 
         force = set(["identity", "translation"] + model.tasks.keys)
@@ -57,149 +64,100 @@ def eval(
                 for t in model.tasks:
                     for domain in "AB":
                         for dtype in data[t.key][domain]:
-                            value = list(
-                                model.get(f"{domain}_{t.key}_{dtype}")
-                                .detach()
-                                .cpu()
-                                .numpy()
-                            )
-                            if t.log_type == "acc" and dtype == "pred":
-                                value = [np.argmax(v) for v in value]
+                            if (
+                                t.log_type != "acc"
+                                and data[t.key][domain][dtype] is not None
+                                and len(data[t.key][domain][dtype]) >= nb_ims
+                            ):
+                                continue
+
+                            v = model.get(f"{domain}_{t.key}_{dtype}").detach().cpu()
+                            if data[t.key][domain][dtype] is None:
+                                data[t.key][domain][dtype] = v
                             else:
-                                if (
-                                    t.log_type != "acc"
-                                    and len(data[t.key][domain][dtype]) >= nb_ims
-                                ):
-                                    value = []
-                            data[t.key][domain][dtype] += value
+                                data[t.key][domain][dtype] = torch.cat(
+                                    [data[t.key][domain][dtype], v], dim=0,
+                                )
 
             # -------------------------
             # -----  Translation  -----
             # -------------------------
-            if len(data["translation"]["A"]["real"]) < nb_ims:
-                # A
-                data["translation"]["A"]["real"].extend(
-                    list(model.A_real.cpu().numpy())
-                )
-                data["translation"]["A"]["cycle"].extend(
-                    list(model.A_rec.detach().cpu().numpy())
-                )
-                data["translation"]["A"]["idt"].extend(
-                    list(model.B_idt.detach().cpu().numpy())
-                )
-                data["translation"]["A"]["fake"].extend(
-                    list(model.B_fake.detach().cpu().numpy())
-                )
-                # B
-                data["translation"]["B"]["real"].extend(
-                    list(model.B_real.cpu().numpy())
-                )
-                data["translation"]["B"]["cycle"].extend(
-                    list(model.B_rec.detach().cpu().numpy())
-                )
-                data["translation"]["B"]["idt"].extend(
-                    list(model.A_idt.detach().cpu().numpy())
-                )
-                data["translation"]["B"]["fake"].extend(
-                    list(model.A_fake.detach().cpu().numpy())
-                )
+            if (
+                data["translation"]["A"]["real"] is None
+                or len(data["translation"]["A"]["real"]) < nb_ims
+            ):
+                for domain in "AB":
+                    for dtype in ["real", "fake", "rec", "idt"]:
+                        dom = domain
+                        if dtype in {"fake", "idt"}:
+                            dom = swap_domain(domain)
+                        v = model.get(f"{dom}_{dtype}").detach().cpu()
+                        if data["translation"][domain][dtype] is None:
+                            data["translation"][domain][dtype] = v
+                        else:
+                            data["translation"][domain][dtype] = torch.cat(
+                                [data["translation"][domain][dtype], v], dim=0
+                            )
+                        # print(
+                        #     f"{domain} {dtype} {len(data['translation'][domain][dtype])}"
+                        # )
 
     for task in data:
         if task != "translation" and model.tasks[task].log_type != "vis":
             continue
         for domain in data[task]:
-            for i, l in data[task][domain].items():
-                data[task][domain][i] = l[:nb_ims]
+            for i, v in data[task][domain].items():
+                data[task][domain][i] = torch.cat(
+                    list(v[:nb_ims].permute(0, 2, 3, 1)), axis=1
+                )
+
+    log_images = int(
+        data["translation"]["A"]["real"].shape[1]
+        / data["translation"]["A"]["real"].shape[0]
+    )
+    im_size = data["translation"]["A"]["real"].shape[0]
 
     print()
 
-    ims = {"A": [], "B": []}
-    for i in range(0, len(data["translation"]["A"]["real"]), 5):
-        k = i + 5
-        tmp = {}
+    ims = {"A": None, "B": None}
 
-        # ---------------
-        # -----  A  -----
-        # ---------------
+    data_keys = ["translation"]
+    translation_keys = ["real", "fake", "rec", "idt"]
+    data_keys += [task for task in data if task not in data_keys]
 
-        # Translation
-        im_A_real = np.concatenate(data["translation"]["A"]["real"][i:k], axis=-1)
-        im_B_real = np.concatenate(data["translation"]["B"]["real"][i:k], axis=-1)
-        im_A_cycle = (
-            np.concatenate(data["translation"]["A"]["cycle"][i:k], axis=-1)
-            if len(data["translation"]["A"]["cycle"]) > i
-            else None
-        )
-        im_B_cycle = (
-            np.concatenate(data["translation"]["B"]["cycle"][i:k], axis=-1)
-            if len(data["translation"]["B"]["cycle"]) > i
-            else None
-        )
-        im_A_idt = (
-            np.concatenate(data["translation"]["A"]["idt"][i:k], axis=-1)
-            if len(data["translation"]["A"]["idt"]) > i
-            else None
-        )
-        im_B_idt = (
-            np.concatenate(data["translation"]["B"]["idt"][i:k], axis=-1)
-            if len(data["translation"]["B"]["idt"]) > i
-            else None
-        )
-        im_A_fake = (
-            np.concatenate(data["translation"]["A"]["fake"][i:k], axis=-1)
-            if len(data["translation"]["A"]["fake"]) > i
-            else None
-        )
-        im_B_fake = (
-            np.concatenate(data["translation"]["B"]["fake"][i:k], axis=-1)
-            if len(data["translation"]["B"]["fake"]) > i
-            else None
-        )
-        tmp["A"] = np.concatenate(
-            list(filter(None.__ne__, [im_A_real, im_A_fake, im_A_cycle, im_A_idt],)),
-            axis=-2,
-        )
-        tmp["B"] = np.concatenate(
-            list(filter(None.__ne__, [im_B_real, im_B_fake, im_B_cycle, im_B_idt],)),
-            axis=-2,
-        )
-        try:
-            for task_key, task_dic in data.items():
-                if (
-                    task_key != "translation"
-                    and model.tasks[task_key].log_type != "vis"
-                ):
-                    continue
-                for domain, domain_dic in task_dic.items():
-                    for dtype, dlist in domain_dic.items():
-                        values = dlist[i:k]
-                        if task_key == "depth":
-                            values = [
-                                np.repeat(to_min1_1(_im), 3, axis=0) for _im in values
-                            ]
-                        ims_t = np.concatenate(values, axis=-1)
-                        tmp[domain] = np.concatenate([tmp[domain], ims_t], axis=-2)
-        except ValueError as e:
-            print()
-            print(e)
-            print()
-            import pdb
-
-            pdb.set_trace()
-        ims["A"].append(tmp["A"])
-        ims["B"].append(tmp["B"])
+    for task in data_keys:
+        if task != "translation" and model.tasks[task].log_type != "vis":
+            continue
+        for domain in "AB":
+            im_types = (
+                translation_keys
+                if task == "translation"
+                else list(data[task][domain].keys())
+            )
+            for im_type in im_types:
+                v = data[task][domain][im_type].float()
+                if task == "depth":
+                    v = to_min1_1(v)
+                    v = v.repeat((1, 1, 3))
+                v = v + 1
+                v = v / 2
+                if ims[domain] is None:
+                    ims[domain] = v
+                else:
+                    ims[domain] = torch.cat([ims[domain], v], dim=0)
 
     # ------------------------
     # -----  Comet Logs  -----
     # ------------------------
-    for i in range(len(ims["A"])):
+    for i in range(0, log_images, 5):
+        k = i + 5
         exp.log_image(
-            (np.transpose(ims["A"][i], (1, 2, 0)) + 1) / 2,
+            ims["A"][:, i * im_size : k * im_size, :].numpy(),
             "test_A_{}_{}_{}_rfcidg".format(total_iters, i * 5, (i + 1) * 5 - 1),
             step=total_iters,
         )
         exp.log_image(
-            (np.transpose(ims["B"][i], (1, 2, 0)) + 1) / 2,
+            ims["B"][:, i * im_size : k * im_size, :].numpy(),
             "test_B_{}_{}_{}_rfcidg".format(total_iters, i * 5, (i + 1) * 5 - 1),
             step=total_iters,
         )
@@ -212,8 +170,8 @@ def eval(
 
         test_accs = {
             f"test_G_{domain}_{t.key}_acc": np.mean(
-                np.array(data[t.key][domain]["pred"])
-                == np.array(data[t.key][domain]["target"])
+                data[t.key][domain]["pred"].max(-1)[1].numpy()
+                == data[t.key][domain]["target"].numpy()
             )
             for domain in "AB"
             for t in model.tasks
@@ -229,9 +187,11 @@ def eval(
             if t.log_type != "acc":
                 continue
             for domain in "AB":
+                target = data[t.key][domain]["target"].numpy()
+                pred = data[t.key][domain]["pred"].numpy()
                 exp.log_confusion_matrix(
-                    get_one_hot(np.array(data[t.key][domain]["target"]), t.output_dim),
-                    get_one_hot(np.array(data[t.key][domain]["pred"]), t.output_dim),
+                    get_one_hot(target, t.output_dim),
+                    pred,
                     file_name=f"confusion_{domain}_{t.key}_{total_iters}.json",
                     title=f"confusion_{domain}_{t.key}_{total_iters}.json",
                 )
@@ -239,7 +199,6 @@ def eval(
     print("----------- End Evaluation----------")
     metrics = {k + "_loss": v for k, v in test_losses.items()}
     metrics.update(test_accs)
-    print(metrics)
     return metrics
 
 

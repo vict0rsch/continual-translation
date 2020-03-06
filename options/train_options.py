@@ -155,6 +155,9 @@ class TrainOptions(BaseOptions):
             type=str,
             # required=True,
         )
+        parser.add_argument(
+            "--small_data", type=int, default=-1, help="Limit the dataset size if > 0",
+        )
 
         self.isTrain = True
         return parser

@@ -140,6 +140,9 @@ class ContinualOptions(BaseOptions):
             default="continual",
             help="chooses which model to use. [cycle_gan | pix2pix | test | colorization]",
         )
+        parser.add_argument(
+            "--small_data", type=int, default=-1, help="Limit the dataset size if > 0",
+        )
 
         self.isTrain = True
         return parser

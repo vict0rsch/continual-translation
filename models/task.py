@@ -40,9 +40,9 @@ class BaseTask:
 
         self.loss_names.append(f"G_A_{self.key}")
         self.loss_names.append(f"G_B_{self.key}")
-        if self.needs_D:
-            self.loss_names.append(f"D_A_{self.key}")
-            self.loss_names.append(f"D_B_{self.key}")
+        # if self.needs_D:
+        #     self.loss_names.append(f"D_A_{self.key}")
+        #     self.loss_names.append(f"D_B_{self.key}")
 
         if self.target_key is None:
             self.target_key = self.key + "_target"

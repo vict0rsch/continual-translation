@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
-from options.continual_options import ContinualOptions
+from options.train_options import TrainOptions
 from models import create_model
 from data import create_dataset
 from copy import copy
@@ -27,15 +27,15 @@ if __name__ == "__main__":
     # local: run test.py --dataroot=../s2w_d --gpu_ids -1 --netG continual
     # beluga: python test.py --dataroot=$SLURM_TMPDIR/s2w_d --netG continual --batch_size=5
 
-    opt = ContinualOptions().parse()
+    opt = TrainOptions().parse()
     dataset = create_dataset(opt)
     test_opt = copy(opt)
     test_opt.serial_batches = True
     test_opt.phase = "test"
     test_dataset = create_dataset(test_opt)
 
-    g_step = True
-    eval_model = True
+    g_step = False
+    eval_model = False
     show_rot = False
 
     if show_rot:
@@ -88,6 +88,7 @@ if __name__ == "__main__":
 
     if eval_model:
         model = create_model(opt)
+        exp = None
         exp = comet_ml.Experiment(project_name="continual-translation")
         exp.add_tag(Path(opt.dataroot).name)
         exp.add_tag(opt.model)
