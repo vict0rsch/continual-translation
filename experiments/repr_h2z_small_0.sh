@@ -38,10 +38,10 @@ python train.py \
     --display_freq 5000 \
     --batch_size 4 \
     --netG "continual" \
-    --git_hash="98ba276780eb249ab6cd077aed59d277a57c0d5b" \
-    --name "repr_continual_g0" \
+    --git_hash="9ae00b02e57ffb213a6b8ee4df0ad1a4e55cc3ba" \
+    --name "repr_continual_small_0" \
     --task_schedule "representational" \
-    --message "repr h2z exp with GRAY | repr_h2z_g_0.sh" \
+    --message "repr h2z exp with gray & SMALL | repr_continual_small_0.sh" \
     --lambda_A 10 \
     --lambda_B 10 \
     --lambda_I 0.5 \
