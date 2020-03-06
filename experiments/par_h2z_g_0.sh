@@ -38,10 +38,10 @@ python train.py \
     --display_freq 5000 \
     --batch_size 4 \
     --netG "continual" \
-    --git_hash="98ba276780eb249ab6cd077aed59d277a57c0d5b" \
-    --name "repr_continual_g0" \
-    --task_schedule "representational" \
-    --message "repr h2z exp with GRAY | repr_h2z_g_0.sh" \
+    --git_hash="c09831d8e70321fa0a2d6d34e60229f7f5e482d1" \
+    --name "par_continual_g_0" \
+    --task_schedule "parallel" \
+    --message "repr h2z exp with GRAY | par_h2z_g_0.sh" \
     --lambda_A 10 \
     --lambda_B 10 \
     --lambda_I 0.5 \
@@ -55,8 +55,7 @@ python train.py \
     --lr_depth 0.001 \
     --lr_gray 0.0005 \
     --n_epochs_decay 100 \
-    --n_epochs 200 \
-    --small_data 250
+    --n_epochs 200
 
 
 # 5. Copy whatever you want to save on $SCRATCH

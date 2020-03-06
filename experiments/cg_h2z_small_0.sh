@@ -5,21 +5,17 @@
 #SBATCH --mem=32G                        # Ask for 32 GB of RAM
 #SBATCH --time=24:00:00                   # The job will run for 3 hours
 #SBATCH -o /scratch/vsch/continual/slurm-%j.out  # Write the log in $SCRATCH
-#SBATCH --qos high
-
-#> first experiment to be able to scale minimal losses for other schedules:
-#> --task_schedule=parallel
+#SBATCH --qos unkillable
 
 # 1. Create your environement locally
 module load python/3.7.4
 module load httpproxy
 
-export continual_dataset="h2z_d"
-
-
 cd /home/vsch/continual-translation
 # zip -r $SCRATCH/ct-env.zip ct-env > /dev/null #! uncomment to load new packages
 source /home/vsch/continual-translation/ctenv/bin/activate
+
+export continual_dataset="h2z_d"
 
 # 2. Copy your dataset on the compute node
 # IMPORTANT: Your dataset must be compressed in one single file (zip, hdf5, ...)!!!
@@ -32,32 +28,14 @@ unzip $SLURM_TMPDIR/$continual_dataset.zip -d $SLURM_TMPDIR > /dev/null
 #    and look for the dataset into $SLURM_TMPDIR
 python train.py \
     --num_threads 8 \
+    --git_hash="c09831d8e70321fa0a2d6d34e60229f7f5e482d1" \
     --dataroot $SLURM_TMPDIR/$continual_dataset \
-    --model continual \
+    --name small_cyclegan_0 \
+    --model cycle_gan \
     --checkpoints_dir "/scratch/vsch/continual/checkpoints" \
-    --display_freq 5000 \
-    --batch_size 4 \
-    --netG "continual" \
-    --git_hash="98ba276780eb249ab6cd077aed59d277a57c0d5b" \
-    --name "repr_continual_g0" \
-    --task_schedule "representational" \
-    --message "repr h2z exp with GRAY | repr_h2z_g_0.sh" \
-    --lambda_A 10 \
-    --lambda_B 10 \
-    --lambda_I 0.5 \
-    --lambda_R 1 \
-    --lambda_D 1 \
-    --lambda_G 1 \
-    --depth_loss_threshold 0.1 \
-    --gray_loss_threshold 0.3 \
-    --rotation_acc_threshold 0.9 \
-    --lr_rotation 0.001 \
-    --lr_depth 0.001 \
-    --lr_gray 0.0005 \
-    --n_epochs_decay 100 \
-    --n_epochs 200 \
+    --display_freq 1000 \
+    --n_epochs 300 \
+    --batch_size 5 \
     --small_data 250
-
-
 # 5. Copy whatever you want to save on $SCRATCH
 # cp $SLURM_TMPDIR/checkpoints $SCRATCH

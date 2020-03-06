@@ -21,6 +21,7 @@ def eval(
     nb_ims: int = 30,
 ):
     continual = model.opt.model == "continual"
+    metrics = {}
     print(f"----------- Evaluation {total_iters} ----------")
     with torch.no_grad():
         data = {
@@ -29,15 +30,18 @@ def eval(
                 "B": {"rec": None, "idt": None, "real": None, "fake": None},
             }
         }
-        for t in model.tasks:
-            tmp = {}
-            if t.eval_visuals_pred or t.log_type == "acc":
-                tmp["pred"] = None
-            if t.eval_visuals_target or t.log_type == "acc":
-                tmp["target"] = None
-            data[t.key] = {domain: deepcopy(tmp) for domain in "AB"}
+        force = set(["identity", "translation"])
+        if continual:
+            for t in model.tasks:
+                tmp = {}
+                if t.eval_visuals_pred or t.log_type == "acc":
+                    tmp["pred"] = None
+                if t.eval_visuals_target or t.log_type == "acc":
+                    tmp["target"] = None
+                data[t.key] = {domain: deepcopy(tmp) for domain in "AB"}
 
-        force = set(["identity", "translation"] + model.tasks.keys)
+            force |= set(model.tasks.keys)
+
         print()
         losses = {
             k: []
@@ -178,27 +182,25 @@ def eval(
             if t.log_type == "acc"
         }
 
-        print(test_accs)
+        if continual:
+            exp.log_metrics(test_losses, step=total_iters)
+            exp.log_metrics(test_accs, step=total_iters)
 
-        exp.log_metrics(test_losses, step=total_iters)
-        exp.log_metrics(test_accs, step=total_iters)
-
-        for t in model.tasks:
-            if t.log_type != "acc":
-                continue
-            for domain in "AB":
-                target = data[t.key][domain]["target"].numpy()
-                pred = data[t.key][domain]["pred"].numpy()
-                exp.log_confusion_matrix(
-                    get_one_hot(target, t.output_dim),
-                    pred,
-                    file_name=f"confusion_{domain}_{t.key}_{total_iters}.json",
-                    title=f"confusion_{domain}_{t.key}_{total_iters}.json",
-                )
-
+            for t in model.tasks:
+                if t.log_type != "acc":
+                    continue
+                for domain in "AB":
+                    target = data[t.key][domain]["target"].numpy()
+                    pred = data[t.key][domain]["pred"].numpy()
+                    exp.log_confusion_matrix(
+                        get_one_hot(target, t.output_dim),
+                        pred,
+                        file_name=f"confusion_{domain}_{t.key}_{total_iters}.json",
+                        title=f"confusion_{domain}_{t.key}_{total_iters}.json",
+                    )
+            metrics = {k + "_loss": v for k, v in test_losses.items()}
+            metrics.update(test_accs)
     print("----------- End Evaluation----------")
-    metrics = {k + "_loss": v for k, v in test_losses.items()}
-    metrics.update(test_accs)
     return metrics
 
 

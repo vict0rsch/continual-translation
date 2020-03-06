@@ -37,7 +37,7 @@ if __name__ == "__main__":
     test_dataset = create_dataset(test_opt)
     dataset_size = len(dataset)  # get the number of images in the dataset.
     print("The number of training images = %d" % dataset_size)
-    exp = comet_ml.Experiment(project_name="continual-translation")
+    exp = comet_ml.Experiment(project_name="continual-translation", auto_metric_logging=False)
     exp.log_parameters(dict(vars(opt)))
     if "message" in opt:
         exp.log_text(opt.message)

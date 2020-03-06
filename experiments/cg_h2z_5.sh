@@ -35,5 +35,7 @@ python train.py \
     --display_freq 1000 \
     --n_epochs 300 \
     --batch_size 5 \
+    --message "repr h2z exp with GRAY | par_h2z_g_0.sh" \
+    --small_data 250
 # 5. Copy whatever you want to save on $SCRATCH
 # cp $SLURM_TMPDIR/checkpoints $SCRATCH
