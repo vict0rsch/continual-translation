@@ -154,12 +154,12 @@ def eval(
         k = i + 5
         exp.log_image(
             ims["A"][:, i * im_size : k * im_size, :].numpy(),
-            "test_A_{}_{}_{}_rfcidg".format(total_iters, i * 5, (i + 1) * 5 - 1),
+            "test_A_{}_{}_rfcidg".format(i * 5, (i + 1) * 5 - 1),
             step=total_iters,
         )
         exp.log_image(
             ims["B"][:, i * im_size : k * im_size, :].numpy(),
-            "test_B_{}_{}_{}_rfcidg".format(total_iters, i * 5, (i + 1) * 5 - 1),
+            "test_B_{}_{}_rfcidg".format(i * 5, (i + 1) * 5 - 1),
             step=total_iters,
         )
     if continual:
