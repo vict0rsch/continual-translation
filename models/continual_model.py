@@ -1002,6 +1002,15 @@ class ContinualModel(BaseModel):
         self.backward_G()  # calculate gradients for G_A and G_B
         self.optimizer_G.step()  # update G_A and G_B's weights
         # D_A and D_B
+        self.set_requires_grad(
+            [
+                self.get(d)
+                for d in dir(self)
+                if hasattr(self, d) and d.startswith("netD_")
+            ],
+            True,
+        )  # Ds require no gradients when optimizing Gs
+        self.optimizer_D.zero_grad()  # set D_A and D_B's gradients to zero
         self.backward_D()
         self.optimizer_D.step()
 

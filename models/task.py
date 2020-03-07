@@ -82,6 +82,7 @@ class RotationTask(BaseTask):
         self.priority = 0
         self.threshold_type = "acc"
 
+
 class JigsawTask(BaseTask):
     def __init__(self):
         super().__init__()
@@ -95,7 +96,7 @@ class JigsawTask(BaseTask):
         self.loader_resize_target = False
         self.log_type = "acc"
         self.needs_z = True
-        self.output_dim = 4
+        self.output_dim = 64
         self.priority = 0
         self.threshold_type = "acc"
 
