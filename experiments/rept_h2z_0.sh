@@ -36,7 +36,7 @@ python train.py \
     --model continual \
     --checkpoints_dir "/scratch/vsch/continual/checkpoints" \
     --display_freq 5000 \
-    --batch_size 4 \
+    --batch_size 3 \
     --netG "continual" \
     --git_hash="200517bdb5775dd616c7a6aa674395caf7eac6ac" \
     --name "rept_h2z_0" \

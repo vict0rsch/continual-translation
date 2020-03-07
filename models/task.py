@@ -97,7 +97,7 @@ class JigsawTask(BaseTask):
         self.log_type = "acc"
         self.needs_z = True
         self.output_dim = 64
-        self.priority = 0
+        self.priority = 1
         self.threshold_type = "acc"
 
 
@@ -113,7 +113,7 @@ class DepthTask(BaseTask):
         self.log_type = "vis"
         self.needs_lr = True
         self.needs_z = False
-        self.priority = 1
+        self.priority = 2
         self.threshold_type = "loss"
 
 
@@ -129,7 +129,7 @@ class GrayTask(BaseTask):
         self.needs_D = True
         self.needs_lr = True
         self.needs_z = True
-        self.priority = 2
+        self.priority = 3
         self.target_key = "real"
         self.threshold_type = "loss"
 

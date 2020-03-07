@@ -720,8 +720,8 @@ class ContinualModel(BaseModel):
     def sequential_schedule(self, metrics):
         for t in self.tasks:
             threshold = getattr(self.opt, t.threshold_key)
-            metric_A = metrics[f"test_A_{t.key}_{t.threshold_type}"]
-            metric_B = metrics[f"test_B_{t.key}_{t.threshold_type}"]
+            metric_A = metrics[f"test_G_A_{t.key}_{t.threshold_type}"]
+            metric_B = metrics[f"test_G_B_{t.key}_{t.threshold_type}"]
             s = f"{t.key}_{t.threshold_type} : "
             s += f"{metric_A} & {metric_B} vs {threshold}\n"
             if t.threshold_type == "acc":
@@ -755,8 +755,8 @@ class ContinualModel(BaseModel):
     def additional_schedule(self, metrics):
         for t in self.tasks:
             threshold = getattr(self.opt, t.threshold_key)
-            metric_A = metrics[f"test_A_{t.key}_{t.threshold_type}"]
-            metric_B = metrics[f"test_B_{t.key}_{t.threshold_type}"]
+            metric_A = metrics[f"test_G_A_{t.key}_{t.threshold_type}"]
+            metric_B = metrics[f"test_G_B_{t.key}_{t.threshold_type}"]
             s = f"{t.key}_{t.threshold_type} : "
             s += f"{metric_A} & {metric_B} vs {threshold}\n"
             if t.threshold_type == "acc":

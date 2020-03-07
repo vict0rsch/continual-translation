@@ -953,20 +953,20 @@ class ContinualGenerator(nn.Module):
             nn.MaxPool2d(2),
         ]  # 256 * 8 * 8
         rotation += [
-            nn.Conv2d(256, 256, kernel_size=3, stride=2, padding=1, bias=use_bias,),
+            nn.Conv2d(256, 128, kernel_size=3, stride=2, padding=1, bias=use_bias,),
             norm_layer(256),
             nn.LeakyReLU(0.2, True),
         ]  # 256 * 4 * 4
         jigsaw += [
-            nn.Conv2d(256, 256, kernel_size=3, stride=2, padding=1, bias=use_bias,),
+            nn.Conv2d(256, 128, kernel_size=3, stride=2, padding=1, bias=use_bias,),
             norm_layer(256),
             nn.LeakyReLU(0.2, True),
         ]  # 256 * 4 * 4
 
         rotation += [FCView()]
         jigsaw += [FCView()]
-        rotation += [nn.Linear(256 * 4 * 4, 4)]
-        jigsaw += [nn.Linear(256 * 4 * 4, 64)]
+        rotation += [nn.Linear(128 * 4 * 4, 4)]
+        jigsaw += [nn.Linear(128 * 4 * 4, 64)]
 
         self.decoder = nn.Sequential(*decoder)
         self.depth = nn.Sequential(*depth)
