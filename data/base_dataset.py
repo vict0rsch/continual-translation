@@ -275,7 +275,7 @@ class _Jigsaw:
 
     def __call__(self, dic):
         perm_idx = np.random.randint(0, len(self.perms))
-        perm = slef.perms[perm_idx]
+        perm = self.perms[perm_idx]
         key = [k for k in dic if "jigsaw" in k][0]
         img = dic[key]
         img = np.array(self.crop(img))

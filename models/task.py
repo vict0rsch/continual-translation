@@ -145,6 +145,8 @@ class AuxiliaryTasks:
                 tasks += [(k, RotationTask())]
             elif k == "depth":
                 tasks += [(k, DepthTask())]
+            elif k == "jigsaw":
+                tasks += [(k, JigsawTask())]
             else:
                 raise ValueError("Unknown Auxiliary task {}".format(k))
         tasks = sorted(tasks, key=lambda x: x[1].priority)

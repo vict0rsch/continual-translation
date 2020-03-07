@@ -1,29 +1,31 @@
 #!/bin/bash
-#SBATCH --account=rpp-bengioy            # Yoshua pays for your job
 #SBATCH --cpus-per-task=8                # Ask for 6 CPUs
-#SBATCH --gres=gpu:1                     # Ask for 1 GPU
+#SBATCH --gres=gpu:rtx2080:1                     # Ask for 1 GPU
 #SBATCH --mem=32G                        # Ask for 32 GB of RAM
-#SBATCH --time=24:00:00                   # The job will run for 3 hours
-#SBATCH -o /scratch/vsch/continual/slurm-%j.out  # Write the log in $SCRATCH
-#SBATCH --qos high
+#SBATCH -o /network/tmp1/schmidtv/continual/slurm-%j.out  # Write the log in $SCRATCH
+#SBATCH --qos unkillable
 
 #> first experiment to be able to scale minimal losses for other schedules:
 #> --task_schedule=parallel
 
 # 1. Create your environement locally
-module load python/3.7.4
-module load httpproxy
+module load anaconda/3
+
+source $CONDA_ACTIVATE
+
+conda activate base
+conda deactivate
+conda activate clouds
 
 export continual_dataset="h2z_d"
 
 
-cd /home/vsch/continual-translation
+cd /network/home/schmidtv/continual-translation
 # zip -r $SCRATCH/ct-env.zip ct-env > /dev/null #! uncomment to load new packages
-source /home/vsch/continual-translation/ctenv/bin/activate
 
 # 2. Copy your dataset on the compute node
 # IMPORTANT: Your dataset must be compressed in one single file (zip, hdf5, ...)!!!
-cp /scratch/vsch/continual/$continual_dataset.zip $SLURM_TMPDIR
+cp /network/tmp1/schmidtv/continual/$continual_dataset.zip $SLURM_TMPDIR
 
 # 3. Eventually unzip your dataset
 unzip $SLURM_TMPDIR/$continual_dataset.zip -d $SLURM_TMPDIR > /dev/null

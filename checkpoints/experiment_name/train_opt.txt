@@ -1,6 +1,6 @@
 ----------------- Options ---------------
-          auxiliary_tasks: ['rotation', 'gray', 'depth'] 
-               batch_size: 1                             
+          auxiliary_tasks: ['rotation', 'gray', 'depth', 'jigsaw']
+               batch_size: 2                             	[default: 1]
                     beta1: 0.5                           
           checkpoints_dir: ./checkpoints                 
            continue_train: False                         
@@ -20,6 +20,7 @@
                     epoch: latest                        
               epoch_count: 1                             
                  gan_mode: lsgan                         
+                 git_hash: None                          
                   gpu_ids: -1                            	[default: 0]
       gray_loss_threshold: 0.5                           
          i_loss_threshold: 0.5                           
@@ -27,11 +28,13 @@
                 init_type: normal                        
                  input_nc: 3                             
                   isTrain: True                          	[default: None]
+     jigsaw_acc_threshold: 0.2                           
                  lambda_A: 10.0                          
                  lambda_B: 10.0                          
                  lambda_D: 1.0                           
                  lambda_G: 1.0                           
                  lambda_I: 0.5                           
+                 lambda_J: 1.0                           
                  lambda_R: 1.0                           
                 load_iter: 0                             	[default: 0]
                 load_size: 286                           
@@ -42,7 +45,8 @@
                 lr_policy: linear                        
               lr_rotation: 0.0002                        
          max_dataset_size: inf                           
-                    model: continual                     
+                  message: None                          
+                    model: continual                     	[default: cycle_gan]
                  n_epochs: 100                           
            n_epochs_decay: 100                           
                n_layers_D: 3                             
@@ -55,7 +59,7 @@
                   no_flip: False                         
                   no_html: False                         
                      norm: instance                      
-              num_threads: 0                             	[default: 6]
+              num_threads: 6                             
                 output_nc: 3                             
                     phase: train                         
                 pool_size: 50                            
@@ -65,7 +69,9 @@
              save_by_iter: False                         
           save_epoch_freq: 5                             
          save_latest_freq: 5000                          
+              sbatch_file: None                          
            serial_batches: False                         
+               small_data: -1                            
                    suffix:                               
             task_schedule: sequential                    	[default: parallel]
          update_html_freq: 1000                          
