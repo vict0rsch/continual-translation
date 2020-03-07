@@ -474,22 +474,22 @@ class ContinualModel(BaseModel):
                     continue
 
                 if t.needs_z:
-                    data = {
+                    z_data = {
                         domain: self.get(f"{domain}_{t.key}") for domain in ["A", "B"]
                     }
                     for domain in ["A", "B"]:
                         encoder = rgetattr(self, f"netG_{domain}.module.encoder")
-                        data[domain] = encoder(data[domain])
-                        setattr(self, f"{domain}_z_{t.key}", data)
+                        z_data[domain] = encoder(z_data[domain])
+                        setattr(self, f"{domain}_z_{t.key}", z_data)
                 else:
-                    data = {
+                    z_data = {
                         "A": self.A_z,
                         "B": self.B_z,
                     }
 
                 for domain in ["A", "B"]:
                     model = rgetattr(self, f"netG_{domain}.module.{t.module_name}")
-                    setattr(self, f"{domain}_{t.key}_pred", model(data[domain]))
+                    setattr(self, f"{domain}_{t.key}_pred", model(z_data[domain]))
 
         # ---------------------------
         # -----  Other Devices  -----
@@ -516,22 +516,22 @@ class ContinualModel(BaseModel):
                     continue
 
                 if t.needs_z:
-                    data = {
+                    z_data = {
                         domain: self.get(f"{domain}_{t.key}") for domain in ["A", "B"]
                     }
                     for domain in ["A", "B"]:
                         encoder = rgetattr(self, f"netG_{domain}.encoder")
-                        data[domain] = encoder(data[domain])
-                        setattr(self, f"{domain}_z_{t.key}", data)
+                        z_data[domain] = encoder(z_data[domain])
+                        setattr(self, f"{domain}_z_{t.key}", z_data)
                 else:
-                    data = {
+                    z_data = {
                         "A": self.A_z,
                         "B": self.B_z,
                     }
 
                 for domain in ["A", "B"]:
                     model = rgetattr(self, f"netG_{domain}.{t.module_name}")
-                    setattr(self, f"{domain}_{t.key}_pred", model(data[domain]))
+                    setattr(self, f"{domain}_{t.key}_pred", model(z_data[domain]))
 
     def backward_D_basic(self, netD, real, fake):
         """Calculate GAN loss for the discriminator
@@ -756,6 +756,64 @@ class ContinualModel(BaseModel):
             else:
                 print("No update for " + s)
 
+    def representational_traduction_schedule(self, metrics):
+        task_conditions = True
+        s = ""
+        for t in self.tasks:
+            threshold = getattr(self.opt, t.threshold_key)
+            metric_A = metrics[f"test_G_A_{t.key}_{t.threshold_type}"]
+            metric_B = metrics[f"test_G_B_{t.key}_{t.threshold_type}"]
+            s += f"{t.key}_{t.threshold_type} : "
+            s += f"{metric_A} & {metric_B} vs {threshold}\n"
+            if t.threshold_type == "acc":
+                task_condition = metric_A > threshold and metric_B > threshold
+            else:
+                task_condition = metric_A < threshold and metric_B < threshold
+            task_conditions = task_conditions and task_condition
+
+        # i = self.opt.i_loss_threshold
+
+        if task_conditions:
+            print("\n\n>> Start translation <<\n")
+            if self.exp:
+                self.exp.log_parameter("schedule_start_translation", self.total_iters)
+                self.exp.log_parameter("schedule_stop_representation", self.total_iters)
+            self._should_compute_translation = True
+            self._should_compute_identity = True
+            for t in self.tasks:
+                setattr(self, f"_should_compute_{t.key}", False)
+
+            if not self.repr_is_frozen:
+                if isinstance(self.netG_A, nn.DataParallel):
+                    models = [
+                        self.netG_A.module.encoder,
+                        self.netG_B.module.encoder,
+                    ]
+                    models += [
+                        rgetattr(self, f"netG_{d}.module.{t.module_name}")
+                        for d in ["A", "B"]
+                        for t in self.tasks
+                    ]
+                    self.set_requires_grad(models, requires_grad=False)
+                    unfreeze = [self.netG_A.module.decoder, self.netG_B.module.decoder]
+                    self.set_requires_grad(unfreeze, requires_grad=True)
+                else:
+                    models = [
+                        self.netG_A.encoder,
+                        self.netG_B.encoder,
+                    ]
+                    models += [
+                        rgetattr(self, f"netG_{d}.{t.module_name}")
+                        for d in ["A", "B"]
+                        for t in self.tasks
+                    ]
+                    self.set_requires_grad(models, requires_grad=False)
+                    unfreeze = [self.netG_A.decoder, self.netG_B.decoder]
+                    self.set_requires_grad(unfreeze, requires_grad=True)
+                self.repr_is_frozen = True
+        else:
+            print("No schedule update:\n" + s)
+
     def representational_schedule(self, metrics):
 
         task_conditions = True
@@ -871,6 +929,20 @@ class ContinualModel(BaseModel):
             self._should_compute_translation = False
             self.update_task_schedule = self.additional_schedule
 
+        elif self.opt.task_schedule == "representational-traduction":
+            for t in self.tasks:
+                setattr(self, f"_should_compute_{t.key}", True)
+            self._should_compute_identity = True
+            self._should_compute_translation = True
+            self.repr_is_frozen = False
+            self.update_task_schedule = self.representational_traduction_schedule
+            if isinstance(self.netG_A, nn.DataParallel):
+                freeze = [self.netG_A.module.decoder, self.netG_B.module.decoder]
+            else:
+                freeze = [self.netG_A.decoder, self.netG_B.decoder]
+            freeze += [self.netD_A, self.netD_B]
+            self.set_requires_grad(freeze, requires_grad=False)
+
         elif self.opt.task_schedule == "representational":
             for t in self.tasks:
                 setattr(self, f"_should_compute_{t.key}", True)
@@ -908,6 +980,7 @@ class ContinualModel(BaseModel):
         self.optimizer_G.step()  # update G_A and G_B's weights
         # D_A and D_B
         self.backward_D()
+        self.optimizer_D.step()
 
     def get(self, key):
         return getattr(self, key)

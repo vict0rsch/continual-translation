@@ -39,9 +39,9 @@ python train.py \
     --batch_size 4 \
     --netG "continual" \
     --git_hash="200517bdb5775dd616c7a6aa674395caf7eac6ac" \
-    --name "repr_continual_small_0" \
-    --task_schedule "representational" \
-    --message "repr h2z exp with gray & SMALL | repr_continual_small_0.sh" \
+    --name "rept_h2z_0" \
+    --task_schedule "representational-traduction" \
+    --message "repr with traduction signal | rept_h2z_0.sh" \
     --lambda_A 10 \
     --lambda_B 10 \
     --lambda_I 0.5 \
@@ -56,7 +56,6 @@ python train.py \
     --lr_gray 0.0005 \
     --n_epochs_decay 100 \
     --n_epochs 200 \
-    --small_data 250
 
 
 # 5. Copy whatever you want to save on $SCRATCH

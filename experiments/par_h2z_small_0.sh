@@ -39,9 +39,9 @@ python train.py \
     --batch_size 4 \
     --netG "continual" \
     --git_hash="200517bdb5775dd616c7a6aa674395caf7eac6ac" \
-    --name "repr_continual_small_0" \
-    --task_schedule "representational" \
-    --message "repr h2z exp with gray & SMALL | repr_continual_small_0.sh" \
+    --name "par_continual_small_0" \
+    --task_schedule "parallel" \
+    --message "par h2z exp with gray & SMALL | par_continual_small_0.sh" \
     --lambda_A 10 \
     --lambda_B 10 \
     --lambda_I 0.5 \

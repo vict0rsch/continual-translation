@@ -68,53 +68,52 @@ class BaseTask:
 class RotationTask(BaseTask):
     def __init__(self):
         super().__init__()
-        self.key = "rotation"
-        self.threshold_type = "loss"
-        self.priority = 0
-        self.needs_z = True
-        self.lambda_key = "R"
+        self.eval_acc = True
         self.eval_visuals_pred = False
         self.eval_visuals_target = False
-        self.eval_acc = True
-        self.log_type = "acc"
-        self.threshold_type = "acc"
-        self.loader_resize_target = False
-        self.loader_resize_input = True
-        self.output_dim = 4
+        self.key = "rotation"
+        self.lambda_key = "R"
         self.loader_flip = False
+        self.loader_resize_input = True
+        self.loader_resize_target = False
+        self.log_type = "acc"
+        self.needs_z = True
+        self.output_dim = 4
+        self.priority = 0
+        self.threshold_type = "acc"
 
 
 class DepthTask(BaseTask):
     def __init__(self):
         super().__init__()
-        self.key = "depth"
-        self.needs_lr = True
-        self.threshold_type = "loss"
-        self.priority = 1
-        self.needs_z = False
-        self.lambda_key = "D"
+        self.eval_acc = False
         self.eval_visuals_pred = True
         self.eval_visuals_target = True
-        self.eval_acc = False
-        self.log_type = "vis"
         self.input_key = "real"
+        self.key = "depth"
+        self.lambda_key = "D"
+        self.log_type = "vis"
+        self.needs_lr = True
+        self.needs_z = False
+        self.priority = 1
+        self.threshold_type = "loss"
 
 
 class GrayTask(BaseTask):
     def __init__(self):
         super().__init__()
-        self.key = "gray"
-        self.needs_D = True
-        self.needs_lr = True
-        self.target_key = "real"
-        self.threshold_type = "loss"
-        self.priority = 2
-        self.needs_z = True
-        self.lambda_key = "G"
+        self.eval_acc = False
         self.eval_visuals_pred = True
         self.eval_visuals_target = False
-        self.eval_acc = False
+        self.key = "gray"
+        self.lambda_key = "G"
         self.log_type = "vis"
+        self.needs_D = True
+        self.needs_lr = True
+        self.needs_z = True
+        self.priority = 2
+        self.target_key = "real"
+        self.threshold_type = "loss"
 
 
 class AuxiliaryTasks:
@@ -172,46 +171,3 @@ class AuxiliaryTasks:
         if isinstance(k, int):
             return self.tasks[self.keys[k]]
         return self.tasks[k]
-
-
-class T:
-    def __init__(self, ts):
-        self.tasks = OrderedDict([(t, t + 10) for t in ts])
-        self._index = 0
-        self._keys = list(self.tasks.keys())
-
-    def task_before(self, k):
-        if k not in self.tasks:
-            return None
-        keys = list(self.tasks.keys())
-        index = keys.index(k)
-        if index == 0:
-            return None
-        return keys[index - 1]
-
-    def task_after(self, k):
-        if k not in self.tasks:
-            return None
-
-        keys = list(self.tasks.keys())
-        index = keys.index(k)
-        if index >= len(self.tasks) - 1:
-            return None
-        return keys[index + 1]
-
-    def __str__(self):
-        return "AuxiliaryTasks: " + str(self.tasks)
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        if self._index == len(self._keys):
-            self._index = 0
-            raise StopIteration
-        t = self.tasks[self._keys[self._index]]
-        self._index += 1
-        return t
-
-    def __getitem__(self, i):
-        return self.tasks[self._keys[i]]
