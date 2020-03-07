@@ -79,6 +79,9 @@ class ContinualModel(BaseModel):
                 "--lambda_R", type=float, default=1.0, help="weight for rotation",
             )
             parser.add_argument(
+                "--lambda_J", type=float, default=1.0, help="weight for jigsaw",
+            )
+            parser.add_argument(
                 "--lambda_D", type=float, default=1.0, help="weight for depth",
             )
             parser.add_argument(
@@ -113,6 +116,12 @@ class ContinualModel(BaseModel):
                 type=float,
                 default=0.2,
                 help="minimal rotation classification loss to switch task",
+            )
+            parser.add_argument(
+                "--jigsaw_acc_threshold",
+                type=float,
+                default=0.2,
+                help="minimal jigsaw classification loss to switch task",
             )
             parser.add_argument(
                 "--depth_loss_threshold",
@@ -158,7 +167,7 @@ class ContinualModel(BaseModel):
                 action="store",
                 type=str,
                 nargs="*",
-                default=["rotation", "gray", "depth"],
+                default=["rotation", "gray", "depth", "jigsaw"],
             )
 
         return parser
@@ -311,6 +320,7 @@ class ContinualModel(BaseModel):
             # by function <BaseModel.setup>.
 
             self.rotationCriterion = torch.nn.CrossEntropyLoss()
+            self.jigsawCriterion = torch.nn.CrossEntropyLoss()
             self.depthCriterion = torch.nn.L1Loss()
 
             if isinstance(self.netG_A, nn.DataParallel):
@@ -595,6 +605,7 @@ class ContinualModel(BaseModel):
         lambda_D = self.opt.lambda_D
         lambda_R = self.opt.lambda_R
         lambda_G = self.opt.lambda_G
+        lambda_J = self.opt.lambda_J
 
         lambda_total = 0
 
@@ -646,6 +657,18 @@ class ContinualModel(BaseModel):
             )
             self.loss_G += lambda_R * (self.loss_G_B_rotation + self.loss_G_A_rotation)
             lambda_total += 2 * lambda_R
+
+        if should["jigsaw"]:
+            # print("jigsaw loss")
+            device = self.A_jigsaw_pred.device
+            self.loss_G_A_jigsaw = self.jigsawCriterion(
+                self.A_jigsaw_pred, self.A_jigsaw_target.to(device),
+            )
+            self.loss_G_B_jigsaw = self.jigsawCriterion(
+                self.B_jigsaw_pred, self.B_jigsaw_target.to(device),
+            )
+            self.loss_G += lambda_J * (self.loss_G_B_jigsaw + self.loss_G_A_jigsaw)
+            lambda_total += 2 * lambda_J
 
         if should["identity"]:
             # print("identity loss")

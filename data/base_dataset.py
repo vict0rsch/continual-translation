@@ -266,6 +266,33 @@ class _Rotate:
         return dic
 
 
+class _Jigsaw:
+    def __init__(self, tasks):
+        global jigsaw_permutations
+        self.perms = jigsaw_permutations
+        self.crop = transforms.RandomCrop(222)
+        self.resize = transforms.Resize(256)
+
+    def __call__(self, dic):
+        perm_idx = np.random.randint(0, len(self.perms))
+        perm = slef.perms[perm_idx]
+        key = [k for k in dic if "jigsaw" in k][0]
+        img = dic[key]
+        img = np.array(self.crop(img))
+        imp = np.concatenate(
+            [img[i * 222 // 3 : (i + 1) * 222 // 3] for i in range(3)], 1
+        )
+        imp = np.concatenate(
+            [imp[:, i * imp.shape[0] : (i + 1) * imp.shape[0], :] for i in perm], 1
+        )
+        imp = Image.fromarray(
+            np.concatenate([imp[:, i * 222 : (i + 1) * 222, :] for i in range(3)], 0)
+        )
+        dic[key] = imp
+        dic[key + "_target"] = torch.tensor(perm_idx)
+        return dic
+
+
 class _Normalize:
     def __init__(self, tasks):
         super().__init__()
@@ -285,7 +312,7 @@ class _Normalize:
 
     def __call__(self, dic):
         for k, v in dic.items():
-            if "rotation_target" in k:
+            if "rotation_target" in k or "jigsaw_target" in k:
                 continue
             if "depth" in k:
                 dic.update({k: self.transforms["depth"](v)})
@@ -308,7 +335,7 @@ class _ToTensor:
 
     def __call__(self, dic):
         for k, v in dic.items():
-            if "rotation_target" in k:
+            if "rotation_target" in k or "jigsaw_target" in k:
                 continue
             elif "depth" in k:
                 t = torch.tensor(np.array(v))
@@ -367,6 +394,9 @@ def get_dic_transform(
 
     if "depth" in tasks.keys:
         transform_list.append(_Depth(tasks))
+
+    if "jigsaw" in tasks.keys:
+        transform_list.append(_Jigsaw(tasks))
 
     if "gray" in tasks.keys:
         transform_list.append(_GrayScale(tasks))
@@ -555,3 +585,73 @@ def __rotate(img):
     angle = np.random.choice([0, 90, 180, 270])
     img = img.rotate(angle)
     return img, angle
+
+
+jigsaw_permutations = np.array(
+    [
+        [3, 1, 7, 6, 8, 0, 4, 2, 5],
+        [5, 2, 3, 4, 1, 0, 8, 7, 6],
+        [2, 6, 7, 5, 0, 3, 4, 1, 8],
+        [5, 7, 4, 6, 1, 8, 3, 2, 0],
+        [2, 8, 7, 4, 5, 1, 0, 6, 3],
+        [1, 8, 0, 5, 2, 6, 3, 7, 4],
+        [3, 2, 1, 6, 7, 5, 4, 8, 0],
+        [8, 5, 3, 7, 0, 6, 2, 1, 4],
+        [4, 1, 5, 0, 7, 2, 8, 6, 3],
+        [6, 8, 0, 3, 7, 2, 1, 4, 5],
+        [1, 2, 5, 0, 6, 3, 8, 7, 4],
+        [8, 6, 7, 1, 0, 5, 2, 3, 4],
+        [4, 8, 6, 2, 1, 7, 5, 0, 3],
+        [4, 6, 8, 1, 7, 2, 3, 5, 0],
+        [6, 7, 4, 3, 8, 2, 0, 1, 5],
+        [0, 5, 8, 4, 6, 1, 2, 3, 7],
+        [0, 5, 7, 1, 4, 8, 6, 2, 3],
+        [7, 8, 6, 5, 0, 3, 2, 4, 1],
+        [5, 1, 4, 2, 3, 7, 6, 8, 0],
+        [7, 3, 2, 1, 6, 5, 0, 4, 8],
+        [1, 8, 7, 4, 6, 0, 5, 3, 2],
+        [5, 7, 8, 1, 6, 3, 4, 0, 2],
+        [0, 6, 1, 2, 8, 7, 5, 3, 4],
+        [2, 4, 3, 6, 1, 5, 7, 0, 8],
+        [4, 2, 8, 0, 1, 3, 7, 5, 6],
+        [2, 4, 1, 3, 8, 0, 7, 5, 6],
+        [7, 0, 2, 4, 1, 5, 3, 6, 8],
+        [1, 6, 4, 7, 2, 3, 0, 5, 8],
+        [1, 2, 4, 0, 7, 5, 8, 3, 6],
+        [1, 2, 0, 7, 4, 8, 5, 3, 6],
+        [0, 2, 6, 7, 4, 8, 5, 1, 3],
+        [4, 0, 2, 8, 5, 6, 1, 7, 3],
+        [0, 7, 5, 6, 8, 1, 3, 4, 2],
+        [6, 0, 3, 2, 4, 1, 8, 5, 7],
+        [7, 8, 2, 3, 6, 4, 0, 5, 1],
+        [2, 3, 8, 4, 1, 7, 0, 6, 5],
+        [7, 2, 1, 6, 5, 4, 0, 3, 8],
+        [0, 6, 5, 8, 1, 2, 3, 4, 7],
+        [3, 6, 1, 0, 8, 7, 2, 5, 4],
+        [0, 1, 4, 8, 6, 5, 3, 7, 2],
+        [0, 8, 1, 5, 3, 4, 2, 7, 6],
+        [8, 4, 6, 3, 0, 2, 7, 1, 5],
+        [7, 3, 4, 6, 5, 0, 2, 8, 1],
+        [5, 2, 1, 7, 0, 6, 3, 4, 8],
+        [6, 4, 5, 1, 2, 8, 3, 0, 7],
+        [6, 2, 8, 1, 5, 4, 3, 0, 7],
+        [0, 1, 3, 5, 8, 2, 7, 4, 6],
+        [3, 2, 1, 4, 8, 6, 5, 0, 7],
+        [1, 3, 0, 6, 2, 5, 8, 7, 4],
+        [5, 0, 4, 2, 8, 6, 7, 3, 1],
+        [1, 7, 0, 4, 8, 2, 5, 6, 3],
+        [6, 3, 4, 7, 0, 8, 1, 5, 2],
+        [8, 5, 4, 0, 6, 7, 1, 2, 3],
+        [1, 2, 4, 3, 7, 5, 0, 8, 6],
+        [5, 4, 8, 2, 3, 7, 1, 0, 6],
+        [3, 7, 6, 5, 0, 8, 2, 1, 4],
+        [3, 8, 2, 1, 5, 6, 4, 0, 7],
+        [0, 2, 8, 6, 3, 7, 5, 1, 4],
+        [6, 0, 2, 4, 8, 1, 3, 7, 5],
+        [2, 8, 7, 5, 6, 1, 4, 0, 3],
+        [3, 8, 2, 5, 0, 6, 7, 4, 1],
+        [5, 0, 1, 2, 4, 7, 3, 6, 8],
+        [0, 6, 7, 5, 1, 2, 4, 8, 3],
+        [5, 8, 0, 6, 1, 2, 7, 4, 3],
+    ]
+)

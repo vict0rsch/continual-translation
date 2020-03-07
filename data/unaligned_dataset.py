@@ -118,6 +118,7 @@ class UnalignedDataset(BaseDataset):
             "A_depth_target": A_d_img,
             "A_rotation": A_img,
             "A_gray": A_img,
+            "A_jigsaw": A_img
         }
         ims_A = self.transform_A(im_dict_A)
         ims_A["A_rotation_target"] = copy(ims_A["rotation_target"])
@@ -128,7 +129,7 @@ class UnalignedDataset(BaseDataset):
             "B_real": B_img,
             "B_depth_target": B_d_img,
             "B_rotation": B_img,
-            "B_gray": B_img,
+            "B_jigsaw": B_img,
         }
         ims_B = self.transform_B(im_dict_B)
         ims_B["B_rotation_target"] = copy(ims_B["rotation_target"])

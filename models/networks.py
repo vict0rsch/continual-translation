@@ -915,8 +915,20 @@ class ContinualGenerator(nn.Module):
         gray += [nn.Tanh()]
 
         rotation = []
+        jigsaw = []
         # 256 * 64 * 64
         rotation += [
+            nn.Conv2d(
+                depth[0].conv_block[1].weight.shape[0],
+                256,
+                kernel_size=3,
+                stride=2,
+                padding=1,
+            ),
+            norm_layer(256),
+            nn.LeakyReLU(0.2, True),
+        ]  # 256 * 32 * 32
+        jigsaw += [
             nn.Conv2d(
                 depth[0].conv_block[1].weight.shape[0],
                 256,
@@ -934,18 +946,32 @@ class ContinualGenerator(nn.Module):
             nn.LeakyReLU(0.2, True),
             nn.MaxPool2d(2),
         ]  # 256 * 8 * 8
+        jigsaw += [
+            nn.Conv2d(256, 256, kernel_size=3, stride=2, padding=1, bias=use_bias,),
+            norm_layer(256),
+            nn.LeakyReLU(0.2, True),
+            nn.MaxPool2d(2),
+        ]  # 256 * 8 * 8
         rotation += [
+            nn.Conv2d(256, 256, kernel_size=3, stride=2, padding=1, bias=use_bias,),
+            norm_layer(256),
+            nn.LeakyReLU(0.2, True),
+        ]  # 256 * 4 * 4
+        jigsaw += [
             nn.Conv2d(256, 256, kernel_size=3, stride=2, padding=1, bias=use_bias,),
             norm_layer(256),
             nn.LeakyReLU(0.2, True),
         ]  # 256 * 4 * 4
 
         rotation += [FCView()]
+        jigsaw += [FCView()]
         rotation += [nn.Linear(256 * 4 * 4, 4)]
+        jigsaw += [nn.Linear(256 * 4 * 4, 64)]
 
         self.decoder = nn.Sequential(*decoder)
         self.depth = nn.Sequential(*depth)
         self.rotation = nn.Sequential(*rotation)
+        self.jigsaw = nn.Sequential(*jigsaw)
         self.gray = nn.Sequential(*gray)
 
     def forward(self, input):

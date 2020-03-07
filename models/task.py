@@ -82,6 +82,23 @@ class RotationTask(BaseTask):
         self.priority = 0
         self.threshold_type = "acc"
 
+class JigsawTask(BaseTask):
+    def __init__(self):
+        super().__init__()
+        self.eval_acc = True
+        self.eval_visuals_pred = False
+        self.eval_visuals_target = False
+        self.key = "jigsaw"
+        self.lambda_key = "J"
+        self.loader_flip = False
+        self.loader_resize_input = True
+        self.loader_resize_target = False
+        self.log_type = "acc"
+        self.needs_z = True
+        self.output_dim = 4
+        self.priority = 0
+        self.threshold_type = "acc"
+
 
 class DepthTask(BaseTask):
     def __init__(self):
