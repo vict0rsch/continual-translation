@@ -64,16 +64,28 @@ class ContinualModel(BaseModel):
         parser.set_defaults(no_dropout=True)  # default CycleGAN did not use dropout
         if is_train:
             parser.add_argument(
-                "--lambda_A",
+                "--lambda_CA",
                 type=float,
                 default=10.0,
                 help="weight for cycle loss (A -> B -> A)",
             )
             parser.add_argument(
-                "--lambda_B",
+                "--lambda_CB",
                 type=float,
                 default=10.0,
                 help="weight for cycle loss (B -> A -> B)",
+            )
+            parser.add_argument(
+                "--lambda_DA",
+                type=float,
+                default=1.0,
+                help="weight for Discriminator loss (A -> B -> A)",
+            )
+            parser.add_argument(
+                "--lambda_DB",
+                type=float,
+                default=1.0,
+                help="weight for Discriminator loss (B -> A -> B)",
             )
             parser.add_argument(
                 "--lambda_R", type=float, default=1.0, help="weight for rotation",
@@ -600,8 +612,10 @@ class ContinualModel(BaseModel):
     def backward_G(self, losses_only=False, ignore=set(), force=set()):
         """Calculate the loss for generators G_A and G_B"""
         lambda_idt = self.opt.lambda_I
-        lambda_A = self.opt.lambda_A
-        lambda_B = self.opt.lambda_B
+        lambda_CA = self.opt.lambda_CA
+        lambda_DA = self.opt.lambda_DA
+        lambda_CB = self.opt.lambda_CB
+        lambda_DB = self.opt.lambda_DB
         lambda_D = self.opt.lambda_D
         lambda_R = self.opt.lambda_R
         lambda_G = self.opt.lambda_G
@@ -676,15 +690,15 @@ class ContinualModel(BaseModel):
             assert lambda_idt > 0
             # G_A should be identity if B_real is fed: ||G_A(B) - B||
             self.loss_G_A_idt = (
-                self.criterionIdt(self.A_idt, self.B_real) * lambda_B * lambda_idt
+                self.criterionIdt(self.A_idt, self.B_real) * lambda_CB * lambda_idt
             )
             # G_B should be identity if A_real is fed: ||G_B(A) - A||
             self.loss_G_B_idt = (
-                self.criterionIdt(self.B_idt, self.A_real) * lambda_A * lambda_idt
+                self.criterionIdt(self.B_idt, self.A_real) * lambda_CA * lambda_idt
             )
 
             self.loss_G += self.loss_G_A_idt + self.loss_G_B_idt
-            lambda_total += lambda_A * lambda_idt + lambda_B * lambda_idt
+            lambda_total += lambda_CA * lambda_idt + lambda_CB * lambda_idt
 
         if should["gray"]:
             self.loss_G_A_gray = 0.1 * self.criterionGAN(
@@ -699,18 +713,22 @@ class ContinualModel(BaseModel):
         if should["translation"]:
             # print("translation loss")
             # GAN loss D_A(G_A(A))
-            self.loss_G_A = self.criterionGAN(self.netD_A(self.B_fake), True)
+            self.loss_G_A = (
+                self.criterionGAN(self.netD_A(self.B_fake), True) * lambda_DA
+            )
             # GAN loss D_B(G_B(B))
-            self.loss_G_B = self.criterionGAN(self.netD_B(self.A_fake), True)
+            self.loss_G_B = (
+                self.criterionGAN(self.netD_B(self.A_fake), True) * lambda_DB
+            )
             # Forward cycle loss || G_B(G_A(A)) - A||
-            self.loss_cycle_A = self.criterionCycle(self.A_rec, self.A_real) * lambda_A
+            self.loss_cycle_A = self.criterionCycle(self.A_rec, self.A_real) * lambda_CA
             # Backward cycle loss || G_A(G_B(B)) - B||
-            self.loss_cycle_B = self.criterionCycle(self.B_rec, self.B_real) * lambda_B
+            self.loss_cycle_B = self.criterionCycle(self.B_rec, self.B_real) * lambda_CB
             # combined loss and calculate gradients
             self.loss_G += (
                 self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B
             )
-            lambda_total += lambda_A + lambda_B
+            lambda_total += lambda_CA + lambda_CB
 
         self.loss_G /= lambda_total
 
