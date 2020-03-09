@@ -41,7 +41,7 @@ python train.py \
     --git_hash="200517bdb5775dd616c7a6aa674395caf7eac6ac" \
     --name "rept_h2z_0" \
     --task_schedule "representational-traduction" \
-    --message "repr with traduction signal | rept_h2z_0.sh" \
+    --message "repr with traduction signal | rept_h2z_1.sh" \
     --lambda_CA 10 \
     --lambda_CB 10 \
     --lambda_DA 2 \
@@ -64,3 +64,5 @@ python train.py \
 
 # 5. Copy whatever you want to save on $SCRATCH
 # cp $SLURM_TMPDIR/checkpoints $SCRATCH
+
+python train.py    --num_threads 8    --dataroot $SLURM_TMPDIR/$continual_dataset    --model continual    --checkpoints_dir "/scratch/vsch/continual/checkpoints"    --display_freq 5000    --batch_size 3    --netG "continual"    --git_hash="200517bdb5775dd616c7a6aa674395caf7eac6ac"    --name "rept_h2z_0"    --task_schedule "representational-traduction"    --message "repr with traduction signal | rept_h2z_1.sh"    --lambda_CA 10    --lambda_CB 10    --lambda_DA 2    --lambda_DB 2    --lambda_I 0.5    --lambda_R 1    --lambda_D 1    --lambda_G 1    --depth_loss_threshold 0.15    --gray_loss_threshold 0.3    --rotation_acc_threshold 0.9    --jigsaw_acc_threshold 0.8    --lr_rotation 0.001    --lr_depth 0.001    --lr_gray 0.0005    --lr_jigsaw 0.001    --n_epochs_decay 100    --n_epochs 200

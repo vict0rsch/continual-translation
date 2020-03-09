@@ -14,6 +14,7 @@ DELIMITER = "."
 
 def rgetattr(obj, path: str, *default):
     """
+    Recursive getattr
     :param obj: Object
     :param path: 'attr1.attr2.etc'
     :param default: Optional default value, at any point in the path
@@ -216,6 +217,8 @@ class ContinualModel(BaseModel):
             "G_B",
             "cycle_B",
             "B_idt",
+            "G_D_rotation",
+            "G"
             # "G_A_r",
             # "G_A_d",
             # "G_B_r",
@@ -597,9 +600,13 @@ class ContinualModel(BaseModel):
     def backward_D(self):
 
         if self.should_compute("translation"):
-            self.set_requires_grad([self.netD_A, self.netD_B], True)
-            self.backward_D_A()
-            self.backward_D_B()
+            if (
+                self.opt.task_schedule != "representational-traduction"
+                or self.repr_is_frozen
+            ):
+                self.set_requires_grad([self.netD_A, self.netD_B], True)
+                self.backward_D_A()
+                self.backward_D_B()
 
         for t in self.tasks:
             if not self.should_compute(t.key) or not t.needs_D:
@@ -733,23 +740,16 @@ class ContinualModel(BaseModel):
 
         self.loss_G = 0
         if should["depth"]:
-            try:
-                # print("depth loss")
-                device = self.A_depth_pred.device
-                self.loss_G_A_depth = self.depthCriterion(
-                    self.A_depth_pred, self.A_depth_target.to(device).float()
-                )
-                self.loss_G_B_depth = self.depthCriterion(
-                    self.B_depth_pred, self.B_depth_target.to(device).float()
-                )
-                self.loss_G += lambda_D * (self.loss_G_B_depth + self.loss_G_A_depth)
-                lambda_total += 2 * lambda_D
-            except RuntimeError as e:
-                print()
-                print(e)
-                import pdb
-
-                pdb.set_trace()
+            # print("depth loss")
+            device = self.A_depth_pred.device
+            self.loss_G_A_depth = self.depthCriterion(
+                self.A_depth_pred, self.A_depth_target.to(device).float()
+            )
+            self.loss_G_B_depth = self.depthCriterion(
+                self.B_depth_pred, self.B_depth_target.to(device).float()
+            )
+            self.loss_G += lambda_D * (self.loss_G_B_depth + self.loss_G_A_depth)
+            lambda_total += 2 * lambda_D
 
         if should["rotation"]:
             # print("rotation loss")
@@ -867,9 +867,15 @@ class ContinualModel(BaseModel):
             )
             lambda_total += lambda_CA + lambda_CB
 
-        # self.loss_G /= lambda_total
+        scale = False
+        if scale:
+            self.loss_G /= lambda_total
+            self.exp.log_parameter("scale_loss_with_lambda_total", True)
+        else:
+            self.exp.log_parameter("scale_loss_with_lambda_total", False)
 
         if not losses_only:
+            self.exp.log_metric("lambda_total", lambda_total)
             self.loss_G.backward()
 
     def sequential_schedule(self, metrics):
@@ -897,12 +903,14 @@ class ContinualModel(BaseModel):
                     print(f"\n\n>> Stop {t.key} ; Start {next_keys} <<\n")
                     if self.exp:
                         if i == 0:
+                            if f"schedule_stop_{t.key}" not in self.exp.params:
+                                self.exp.log_parameter(
+                                    f"schedule_stop_{t.key}", self.total_iters
+                                )
+                        if f"schedule_start_{nk}" not in self.exp.params:
                             self.exp.log_parameter(
-                                f"schedule_stop_{t.key}", self.total_iters
+                                f"schedule_start_{nk}", self.total_iters,
                             )
-                        self.exp.log_parameter(
-                            f"schedule_start_{nk}", self.total_iters,
-                        )
                 return
             else:
                 print("No schedule update: " + s)
@@ -930,7 +938,10 @@ class ContinualModel(BaseModel):
                     if i == 0:
                         print(f"\n\n>> Start {next_keys} <<\n")
                     if self.exp:
-                        self.exp.log_parameter(f"schedule_start_{nk}", self.total_iters)
+                        if f"schedule_start_{nk}" not in self.exp.params:
+                            self.exp.log_parameter(
+                                f"schedule_start_{nk}", self.total_iters
+                            )
             else:
                 print("No update for " + s)
 
@@ -953,39 +964,45 @@ class ContinualModel(BaseModel):
 
         if task_conditions:
             print("\n\n>> Start translation <<\n")
-            if self.exp:
-                self.exp.log_parameter("schedule_start_translation", self.total_iters)
-                self.exp.log_parameter("schedule_stop_representation", self.total_iters)
             self._should_compute_translation = True
             self._should_compute_identity = True
             for t in self.tasks:
                 setattr(self, f"_should_compute_{t.key}", False)
 
             if not self.repr_is_frozen:
+                print(">>> Freezing")
+                if self.exp:
+                    if "schedule_start_translation" not in self.exp.params:
+                        self.exp.log_parameter(
+                            "schedule_start_translation", self.total_iters
+                        )
+                        self.exp.log_parameter(
+                            "schedule_stop_representation", self.total_iters
+                        )
                 if isinstance(self.netG_A, nn.DataParallel):
-                    models = [
+                    freeze = [
                         self.netG_A.module.encoder,
                         self.netG_B.module.encoder,
                     ]
-                    models += [
+                    freeze += [
                         rgetattr(self, f"netG_{d}.module.{t.module_name}")
                         for d in ["A", "B"]
                         for t in self.tasks
                     ]
-                    self.set_requires_grad(models, requires_grad=False)
+                    self.set_requires_grad(freeze, requires_grad=False)
                     unfreeze = [self.netG_A.module.decoder, self.netG_B.module.decoder]
                     self.set_requires_grad(unfreeze, requires_grad=True)
                 else:
-                    models = [
+                    freeze = [
                         self.netG_A.encoder,
                         self.netG_B.encoder,
                     ]
-                    models += [
+                    freeze += [
                         rgetattr(self, f"netG_{d}.{t.module_name}")
                         for d in ["A", "B"]
                         for t in self.tasks
                     ]
-                    self.set_requires_grad(models, requires_grad=False)
+                    self.set_requires_grad(freeze, requires_grad=False)
                     unfreeze = [self.netG_A.decoder, self.netG_B.decoder]
                     self.set_requires_grad(unfreeze, requires_grad=True)
                 self.repr_is_frozen = True
@@ -1012,7 +1029,7 @@ class ContinualModel(BaseModel):
 
         if task_conditions:
             print("\n\n>> Start translation <<\n")
-            if self.exp:
+            if self.exp and "schedule_start_translation" not in self.exp.params:
                 self.exp.log_parameter("schedule_start_translation", self.total_iters)
                 self.exp.log_parameter("schedule_stop_representation", self.total_iters)
             self._should_compute_translation = True
@@ -1157,16 +1174,8 @@ class ContinualModel(BaseModel):
         self.backward_G()  # calculate gradients for G_A and G_B
         self.optimizer_G.step()  # update G_A and G_B's weights
         # D_A and D_B
-        self.set_requires_grad(
-            [
-                self.get(d)
-                for d in dir(self)
-                if hasattr(self, d) and d.startswith("netD_")
-            ],
-            True,
-        )  # Ds require no gradients when optimizing Gs
         self.optimizer_D.zero_grad()  # set D_A and D_B's gradients to zero
-        self.backward_D()
+        self.backward_D()  # set_requires_grad in there
         self.optimizer_D.step()
 
     def get(self, key):

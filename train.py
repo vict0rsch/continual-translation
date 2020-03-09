@@ -63,6 +63,8 @@ if __name__ == "__main__":
         exp.add_tag(opt.task_schedule)
     if "small_data" in opt and opt.small_data > 0:
         exp.add_tag("small")
+    # if "D_rotation" in opt and opt.D_rotation:
+    #     exp.add_tag("D_rot")
 
     # -------------------
     # -----  Model  -----
@@ -155,3 +157,4 @@ if __name__ == "__main__":
             % (epoch, opt.n_epochs + opt.n_epochs_decay, time.time() - epoch_start_time)
         )
         model.update_learning_rate()  # update learning rates at the end of every epoch.
+    exp.add_tag("finished")
