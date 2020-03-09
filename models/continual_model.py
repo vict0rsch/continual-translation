@@ -175,6 +175,9 @@ class ContinualModel(BaseModel):
                 "--lr_gray", type=float, default=0.0002,
             )
             parser.add_argument(
+                "--lr_jigsaw", type=float, default=0.0002,
+            )
+            parser.add_argument(
                 "--encoder_merge_ratio",
                 type=float,
                 default=1.0,
