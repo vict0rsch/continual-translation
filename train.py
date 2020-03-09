@@ -36,6 +36,8 @@ if __name__ == "__main__":
     test_opt = copy(opt)
     test_opt.phase = "test"
     test_opt.serial_batches = True
+    if opt.model == "continual":
+        opt.netD = "rotational"
 
     # ----------------------
     # -----  Datasets  -----

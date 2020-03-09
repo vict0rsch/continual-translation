@@ -100,6 +100,12 @@ class ContinualModel(BaseModel):
                 "--lambda_G", type=float, default=1.0, help="weight for gray",
             )
             parser.add_argument(
+                "--lambda_DR",
+                type=float,
+                default=1.0,
+                help="weight for rotation loss in discriminator (see SSGAN minimax)",
+            )
+            parser.add_argument(
                 "--lambda_I",
                 type=float,
                 default=0.5,
@@ -555,7 +561,7 @@ class ContinualModel(BaseModel):
                     model = rgetattr(self, f"netG_{domain}.{t.module_name}")
                     setattr(self, f"{domain}_{t.key}_pred", model(z_data[domain]))
 
-    def backward_D_basic(self, netD, real, fake):
+    def loss_D_basic(self, netD, real, fake, domain="A"):
         """Calculate GAN loss for the discriminator
         Parameters:
             netD (network)      -- the discriminator D
@@ -565,14 +571,21 @@ class ContinualModel(BaseModel):
         We also call loss_D.backward() to calculate the gradients.
         """
         # Real
-        pred_real = netD(real)
+        pred_real, _ = netD(real)
         loss_D_real = self.criterionGAN(pred_real, True)
         # Fake
-        pred_fake = netD(fake.detach())
+        pred_fake, _ = netD(fake.detach())
         loss_D_fake = self.criterionGAN(pred_fake, False)
         # Combined loss and calculate gradients
         loss_D = (loss_D_real + loss_D_fake) * 0.5
-        loss_D.backward()
+
+        if self.D_rotations:
+            rotation_input = self.get(f"{domain}_rotation")
+            rotation_target = self.get(f"{domain}_rotation_target")
+            _, rotation_pred = netD(rotation=rotation_input)
+            loss_D += self.rotationCriterion(rotation_pred, rotation_target)
+
+        # loss_D.backward()
         return loss_D
 
     def backward_D(self):
@@ -590,18 +603,62 @@ class ContinualModel(BaseModel):
                 self.set_requires_grad([netD], True)
                 real = self.get(f"{domain}_{t.target_key}")
                 fake = self.get(f"{domain}_{t.key}_pred")
-                loss = self.backward_D_basic(netD, real, fake)
+                loss = self.loss_D_basic(netD, real, fake, domain)
+                loss.backward()
                 setattr(self, f"loss_D_{domain}_{t.key}", loss)
+
+    # def backward_D_rotation_basic(self, netD, rotation_input, rotation_target):
+    #     rotation_pred = netD(rotation=rotation_input)
+    #     loss = self.rotationCriterion(rotation_pred, rotation_target)
+    #     loss.backward()
+    #     return loss
+
+    # def backward_D_rotation(self):
+    #     #! add set_requires_grad
+    #     suffixes = [""] + ["_" + t.key for t in self.tasks if t.needs_D]
+    #     for domain in ["A", "B"]:
+    #         rotation_input = self.get(f"{domain}_rotation")
+    #         rotation_target = self.get(f"{domain}_rotation_target")
+    #         for suffix in suffixes:
+    #             netD = self.get(f"netD_{domain}{suffix}")
+    #             self.backward_D_rotation_basic(netD, rotation_input, rotation_target)
 
     def backward_D_A(self):
         """Calculate GAN loss for discriminator D_A"""
         B_fake = self.fake_B_pool.query(self.B_fake)
-        self.loss_D_A = self.backward_D_basic(self.netD_A, self.B_real, B_fake)
+        self.loss_D_A = self.loss_D_basic(self.netD_A, self.B_real, B_fake, "A")
+        if self.D_rotation:
+            mixed = []
+            mixed_target = []
+            for b_idx in range(len(self.A_real)):
+                fake = self.A_fake[b_idx].unsqueeze(0)
+                real = self.A_rotation
+                rotation_target = self.A_rotation_target[b_idx].unsqueeze(0)
+                fake_idx = int(torch.randint(0, 5, (1,)))
+                mixed.append(torch.cat([real[:fake_idx], fake, real[fake_idx:]], dim=0))
+                mixed_target.append(
+                    torch.cat(
+                        [
+                            rotation_target[:fake_idx],
+                            torch.tensor([4]),
+                            rotation_target[fake_idx:],
+                        ],
+                        dim=0,
+                    )
+                )
+            mixed = torch.cat(mixed, dim=0)
+            mixed_target = torch.cat(mixed_target, dim=0)
+            self.loss_D_A += self.opt.lambda_DR * self.rotationCriterion(
+                self.netD_A(rotation=mixed)[1], mixed_target
+            )
+
+        self.loss_D_A.backward()
 
     def backward_D_B(self):
         """Calculate GAN loss for discriminator D_B"""
         A_fake = self.fake_A_pool.query(self.A_fake)
-        self.loss_D_B = self.backward_D_basic(self.netD_B, self.A_real, A_fake)
+        self.loss_D_B = self.loss_D_basic(self.netD_B, self.A_real, A_fake, "B")
+        self.loss_D_B.backward()
 
     def should_compute(self, arg):
         key = f"_should_compute_{arg}"
@@ -702,11 +759,12 @@ class ContinualModel(BaseModel):
 
         if should["gray"]:
             self.loss_G_A_gray = 0.1 * self.criterionGAN(
-                self.netD_A_gray(self.A_gray_pred), True
+                self.netD_A_gray(self.A_gray_pred)[0], True
             ) + 0.9 * self.criterionGray(self.A_gray_pred, self.A_real)
             self.loss_G_B_gray = 0.1 * self.criterionGAN(
-                self.netD_B_gray(self.B_gray_pred), True
+                self.netD_B_gray(self.B_gray_pred)[0], True
             ) + 0.9 * self.criterionGray(self.B_gray_pred, self.B_real)
+
             self.loss_G += (self.loss_G_A_gray + self.loss_G_B_gray) * lambda_G
             lambda_total += 2 * lambda_G
 
@@ -714,19 +772,62 @@ class ContinualModel(BaseModel):
             # print("translation loss")
             # GAN loss D_A(G_A(A))
             self.loss_G_A = (
-                self.criterionGAN(self.netD_A(self.B_fake), True) * lambda_DA
+                self.criterionGAN(self.netD_A(self.B_fake)[0], True) * lambda_DA
             )
             # GAN loss D_B(G_B(B))
             self.loss_G_B = (
-                self.criterionGAN(self.netD_B(self.A_fake), True) * lambda_DB
+                self.criterionGAN(self.netD_B(self.A_fake)[0], True) * lambda_DB
             )
             # Forward cycle loss || G_B(G_A(A)) - A||
             self.loss_cycle_A = self.criterionCycle(self.A_rec, self.A_real) * lambda_CA
             # Backward cycle loss || G_A(G_B(B)) - B||
             self.loss_cycle_B = self.criterionCycle(self.B_rec, self.B_real) * lambda_CB
             # combined loss and calculate gradients
+            self.loss_G_D_rotation = 0
+            if self.D_rotation:
+                for domain in "AB":
+                    angles = [torch.randperm(4) for _ in range(len(self.A_real))]
+                    fake_rotations_target = torch.cat(
+                        [a.unsqueeze(0) for a in angles], dim=0,
+                    ).view(-1)
+                    fake_rotations = []
+                    for i, perm in enumerate(angles):
+                        rotated = self.get(f"{domain}_fake")[i].unsqueeze(0)
+                        fake_rotations.append(
+                            torch.cat(
+                                [
+                                    torch.rot90(rotated, k=p, dims=[-2, -1],)
+                                    for p in perm
+                                ],
+                                dim=0,
+                            )
+                        )
+                    fake_rotations = torch.cat(fake_rotations, dim=0)
+                    _, fake_rotations_pred = self.get(f"netD_{domain}")(
+                        rotation=fake_rotations
+                    )
+                    _loss_fake = self.rotationCriterion(
+                        fake_rotations_pred, fake_rotations_target
+                    )
+                    real_rotations_pred = self.get(f"netD_{domain}")(
+                        rotation=self.get(f"{domain}_rotation")
+                    )
+                    _loss_real = self.rotationCriterion(
+                        real_rotations_pred, self.get(f"{domain}_rotation_target")
+                    )
+                    _loss = torch.abs(_loss_fake - _loss_real)
+                    self.set(f"loss_G_{domain}_D_rotation", _loss)
+                self.loss_G_D_rotation = self.opt.lambda_DR * (
+                    self.loss_G_A_D_rotation + self.loss_G_B_D_rotation
+                )
+                lambda_total += 2 * self.opt.lambda_DR
+
             self.loss_G += (
-                self.loss_G_A + self.loss_G_B + self.loss_cycle_A + self.loss_cycle_B
+                self.loss_G_A
+                + self.loss_G_B
+                + self.loss_cycle_A
+                + self.loss_cycle_B
+                + self.loss_G_D_rotation
             )
             lambda_total += lambda_CA + lambda_CB
 

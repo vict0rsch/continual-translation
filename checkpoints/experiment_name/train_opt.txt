@@ -29,9 +29,11 @@
                  input_nc: 3                             
                   isTrain: True                          	[default: None]
      jigsaw_acc_threshold: 0.2                           
-                 lambda_A: 10.0                          
-                 lambda_B: 10.0                          
+                lambda_CA: 10.0                          
+                lambda_CB: 10.0                          
                  lambda_D: 1.0                           
+                lambda_DA: 1.0                           
+                lambda_DB: 1.0                           
                  lambda_G: 1.0                           
                  lambda_I: 0.5                           
                  lambda_J: 1.0                           
@@ -52,7 +54,7 @@
                n_layers_D: 3                             
                      name: experiment_name               
                       ndf: 64                            
-                     netD: basic                         
+                     netD: rotational                    	[default: basic]
                      netG: continual                     	[default: resnet_9blocks]
                       ngf: 64                            
                no_dropout: True                          
