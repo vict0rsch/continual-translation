@@ -1,5 +1,6 @@
 import comet_ml
 import sys
+import time
 from pathlib import Path
 import torch
 import numpy as np
@@ -33,10 +34,13 @@ if __name__ == "__main__":
     test_opt.serial_batches = True
     test_opt.phase = "test"
     test_dataset = create_dataset(test_opt)
+    if opt.model == "continual":
+        opt.netD = "rotational"
 
     g_step = False
     eval_model = False
     show_rot = False
+    full_step = True
 
     if show_rot:
         b = next(iter(dataset))
@@ -50,6 +54,17 @@ if __name__ == "__main__":
         model = create_model(opt)
         model.set_input(b)
         model.forward()
+
+    if full_step:
+        model = create_model(opt)
+        b = next(iter(dataset))
+        stime = time.time()
+        model.set_input(b)
+        model.optimize_parameters()
+        print("Update time: {:.3f}".format(time.time() - stime))
+        for d in dir(model):
+            if d.startswith("loss_") and isinstance(model.get(d), torch.Tensor):
+                print("{:30}: {}".format(d, model.get(d).item()))
 
     if g_step:
         model = create_model(opt)

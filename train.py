@@ -98,10 +98,10 @@ if __name__ == "__main__":
             # ------------------------
             # -----  Train Step  -----
             # ------------------------
-            model.total_iters = total_iters
-            # unpack data from dataset and apply preprocessing
-            model.set_input(data)
+            # unpack data from dataset and apply preprocessing then
             # calculate loss functions, get gradients, update network weights
+            model.total_iters = total_iters
+            model.set_input(data)
             model.optimize_parameters()
 
             iter_times.append((time.time() - iter_start_time) / opt.batch_size)

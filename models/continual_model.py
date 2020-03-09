@@ -6,7 +6,7 @@ from . import networks
 from util.util import angles_to_tensors
 import torch.nn as nn
 from .task import AuxiliaryTasks
-
+import time
 import functools
 
 DELIMITER = "."
@@ -186,6 +186,9 @@ class ContinualModel(BaseModel):
                 type=str,
                 nargs="*",
                 default=["rotation", "gray", "depth", "jigsaw"],
+            )
+            parser.add_argument(
+                "--D_rotation", action="store_true", default=False,
             )
 
         return parser
@@ -579,7 +582,7 @@ class ContinualModel(BaseModel):
         # Combined loss and calculate gradients
         loss_D = (loss_D_real + loss_D_fake) * 0.5
 
-        if self.D_rotations:
+        if self.opt.D_rotation:
             rotation_input = self.get(f"{domain}_rotation")
             rotation_target = self.get(f"{domain}_rotation_target")
             _, rotation_pred = netD(rotation=rotation_input)
@@ -627,30 +630,32 @@ class ContinualModel(BaseModel):
         """Calculate GAN loss for discriminator D_A"""
         B_fake = self.fake_B_pool.query(self.B_fake)
         self.loss_D_A = self.loss_D_basic(self.netD_A, self.B_real, B_fake, "A")
-        if self.D_rotation:
+        self.loss_D_A_basic = self.loss_D_A.clone()
+        if self.opt.D_rotation:
             mixed = []
             mixed_target = []
             for b_idx in range(len(self.A_real)):
                 fake = self.A_fake[b_idx].unsqueeze(0)
-                real = self.A_rotation
-                rotation_target = self.A_rotation_target[b_idx].unsqueeze(0)
+                real = self.A_rotation[b_idx * 4 : (b_idx + 1) * 4]
+                rotation_target = self.A_rotation_target[b_idx * 4 : (b_idx + 1) * 4]
                 fake_idx = int(torch.randint(0, 5, (1,)))
                 mixed.append(torch.cat([real[:fake_idx], fake, real[fake_idx:]], dim=0))
                 mixed_target.append(
                     torch.cat(
                         [
                             rotation_target[:fake_idx],
-                            torch.tensor([4]),
+                            torch.tensor([4], device=self.device),
                             rotation_target[fake_idx:],
                         ],
                         dim=0,
                     )
                 )
-            mixed = torch.cat(mixed, dim=0)
+            mixed = torch.cat(mixed, dim=0).detach()
             mixed_target = torch.cat(mixed_target, dim=0)
-            self.loss_D_A += self.opt.lambda_DR * self.rotationCriterion(
-                self.netD_A(rotation=mixed)[1], mixed_target
+            self.loss_D_A_rotation = self.rotationCriterion(
+                self.netD_A(rotation=mixed)[1], mixed_target.to(self.device)
             )
+            self.loss_D_A += self.loss_D_A_rotation
 
         self.loss_D_A.backward()
 
@@ -658,6 +663,34 @@ class ContinualModel(BaseModel):
         """Calculate GAN loss for discriminator D_B"""
         A_fake = self.fake_A_pool.query(self.A_fake)
         self.loss_D_B = self.loss_D_basic(self.netD_B, self.A_real, A_fake, "B")
+        self.loss_D_B_basic = self.loss_D_B.clone()
+        if self.opt.D_rotation:
+            mixed = []
+            mixed_target = []
+            for b_idx in range(len(self.B_real)):
+                fake = self.B_fake[b_idx].unsqueeze(0)
+                real = self.B_rotation[b_idx * 4 : (b_idx + 1) * 4]
+                rotation_target = self.B_rotation_target[b_idx * 4 : (b_idx + 1) * 4]
+                fake_idx = int(torch.randint(0, 5, (1,)))
+                mixed.append(torch.cat([real[:fake_idx], fake, real[fake_idx:]], dim=0))
+                mixed_target.append(
+                    torch.cat(
+                        [
+                            rotation_target[:fake_idx],
+                            torch.tensor([4], device=self.device),
+                            rotation_target[fake_idx:],
+                        ],
+                        dim=0,
+                    )
+                )
+            mixed = torch.cat(mixed, dim=0).detach()
+            mixed_target = torch.cat(mixed_target, dim=0)
+
+            self.loss_D_B_rotation = self.rotationCriterion(
+                self.netD_B(rotation=mixed)[1], mixed_target.to(self.device)
+            )
+            self.loss_D_B += self.loss_D_B_rotation
+
         self.loss_D_B.backward()
 
     def should_compute(self, arg):
@@ -784,7 +817,7 @@ class ContinualModel(BaseModel):
             self.loss_cycle_B = self.criterionCycle(self.B_rec, self.B_real) * lambda_CB
             # combined loss and calculate gradients
             self.loss_G_D_rotation = 0
-            if self.D_rotation:
+            if self.opt.D_rotation:
                 for domain in "AB":
                     angles = [torch.randperm(4) for _ in range(len(self.A_real))]
                     fake_rotations_target = torch.cat(
@@ -807,9 +840,9 @@ class ContinualModel(BaseModel):
                         rotation=fake_rotations
                     )
                     _loss_fake = self.rotationCriterion(
-                        fake_rotations_pred, fake_rotations_target
+                        fake_rotations_pred, fake_rotations_target.to(self.device)
                     )
-                    real_rotations_pred = self.get(f"netD_{domain}")(
+                    _, real_rotations_pred = self.get(f"netD_{domain}")(
                         rotation=self.get(f"{domain}_rotation")
                     )
                     _loss_real = self.rotationCriterion(
@@ -831,7 +864,7 @@ class ContinualModel(BaseModel):
             )
             lambda_total += lambda_CA + lambda_CB
 
-        self.loss_G /= lambda_total
+        # self.loss_G /= lambda_total
 
         if not losses_only:
             self.loss_G.backward()
@@ -1135,3 +1168,6 @@ class ContinualModel(BaseModel):
 
     def get(self, key):
         return getattr(self, key)
+
+    def set(self, key, value):
+        setattr(self, key, value)

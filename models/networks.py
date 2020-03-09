@@ -1125,7 +1125,15 @@ class RotationalNLayerDiscriminator(nn.Module):
         self.shared = nn.Sequential(*sequence)
         # output 1 channel prediction map
         self.gan = nn.Conv2d(ndf * nf_mult, 1, kernel_size=kw, stride=1, padding=padw)
-        self.rotation = nn.Sequential(*[FCView(), nn.Linear(30 * 30, 4)])
+        self.rotation = nn.Sequential(
+            *[
+                nn.Conv2d(ndf * nf_mult, 1, kernel_size=kw, stride=1, padding=padw),
+                norm_layer(1),
+                nn.LeakyReLU(0.2, True),
+                FCView(),
+                nn.Linear(30 * 30, 5),
+            ]
+        )
 
     def forward(self, input=None, rotation=None):
         """Standard forward."""
