@@ -907,13 +907,20 @@ class ContinualModel(BaseModel):
                                 self.exp.log_parameter(
                                     f"schedule_stop_{t.key}", self.total_iters
                                 )
+                                self.exp.log_text(
+                                    f"schedule_stop_{t.key}: {self.total_iters}"
+                                )
                         if f"schedule_start_{nk}" not in self.exp.params:
                             self.exp.log_parameter(
                                 f"schedule_start_{nk}", self.total_iters,
                             )
+                            self.exp.log_text(
+                                f"schedule_start_{nk}: {self.total_iters}"
+                            )
                 return
             else:
                 print("No schedule update: " + s)
+                self.exp.log_text("No schedule update: " + s + f" ({self.total_iters}))
 
     def additional_schedule(self, metrics):
         for t in self.tasks:
@@ -942,8 +949,10 @@ class ContinualModel(BaseModel):
                             self.exp.log_parameter(
                                 f"schedule_start_{nk}", self.total_iters
                             )
+                            self.exp.log_text(f"schedule_start_{nk}: {self.total_iters}")
             else:
                 print("No update for " + s)
+                self.exp.log_text("No update for " + s + f" ({self.total_iters})")
 
     def representational_traduction_schedule(self, metrics):
         task_conditions = True
@@ -979,6 +988,12 @@ class ContinualModel(BaseModel):
                         self.exp.log_parameter(
                             "schedule_stop_representation", self.total_iters
                         )
+                        self.exp.log_text(
+                            f"schedule_start_translation {self.total_iters}"
+                        )
+                        self.exp.log_text(
+                            f"schedule_stop_representation {self.total_iters}"
+                        )
                 if isinstance(self.netG_A, nn.DataParallel):
                     freeze = [
                         self.netG_A.module.encoder,
@@ -1008,6 +1023,7 @@ class ContinualModel(BaseModel):
                 self.repr_is_frozen = True
         else:
             print("No schedule update:\n" + s)
+            self.exp.log_text("No schedule update:\n" + s + f"({self.total_iters})")
 
     def representational_schedule(self, metrics):
 
@@ -1032,6 +1048,8 @@ class ContinualModel(BaseModel):
             if self.exp and "schedule_start_translation" not in self.exp.params:
                 self.exp.log_parameter("schedule_start_translation", self.total_iters)
                 self.exp.log_parameter("schedule_stop_representation", self.total_iters)
+                self.exp.log_text(f"schedule_start_translation: {self.total_iters}")
+                self.exp.log_text(f"schedule_stop_representation: {self.total_iters}")
             self._should_compute_translation = True
             self._should_compute_identity = True
             for t in self.tasks:
@@ -1063,6 +1081,7 @@ class ContinualModel(BaseModel):
                 self.repr_is_frozen = True
         else:
             print("No schedule update:\n" + s)
+            self.log_text("No schedule update:\n" + s  + f" ({self.total_iters}))
 
     def update_ref_encoder(self):
         alpha = self.opt.encoder_merge_ratio

@@ -37,7 +37,7 @@ python train.py \
     --display_freq 5000 \
     --batch_size 3 \
     --netG "continual" \
-    --git_hash="3a38e112e4ab4fafbea3e12f37db36e583687962" \
+    --git_hash="52f3573f6e17f50302c8895b0355f96ff7e58593" \
     --name "par_h2z_rotD_0" \
     --task_schedule "parallel" \
     --message "par h2z rot D | par_h2z_rotD_0.sh" \
