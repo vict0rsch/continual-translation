@@ -942,11 +942,12 @@ class ContinualModel(BaseModel):
                 self.exp.log_text("No schedule update: " + s + f" ({self.total_iters})")
 
     def continual_schedule(self, metrics):
+        s = ""
         for t in self.tasks:
             threshold = getattr(self.opt, t.threshold_key)
             metric_A = metrics[f"test_G_A_{t.key}_{t.threshold_type}"]
             metric_B = metrics[f"test_G_B_{t.key}_{t.threshold_type}"]
-            s = f"{t.key}_{t.threshold_type} : "
+            s += f"{t.key}_{t.threshold_type} : "
             s += f"{metric_A} & {metric_B} vs {threshold}\n"
             if t.threshold_type == "acc":
                 condition = metric_A > threshold and metric_B > threshold
@@ -984,9 +985,9 @@ class ContinualModel(BaseModel):
                             )
                 self.update_ref_encoder()
                 return
-            else:
-                print("No schedule update: " + s)
-                self.exp.log_text("No schedule update: " + s + f" ({self.total_iters})")
+        if not self.should_compute("translation"):
+            print("No schedule update: " + s)
+            self.exp.log_text("No schedule update: " + s + f" ({self.total_iters})")
 
     def additional_schedule(self, metrics):
         for t in self.tasks:
