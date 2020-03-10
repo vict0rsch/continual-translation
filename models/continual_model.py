@@ -107,6 +107,12 @@ class ContinualModel(BaseModel):
                 help="weight for rotation loss in discriminator (see SSGAN minimax)",
             )
             parser.add_argument(
+                "--lambda_distillation",
+                type=float,
+                default=5.0,
+                help="weight for distillation loss (when repr_mode == 'distillation')",
+            )
+            parser.add_argument(
                 "--lambda_I",
                 type=float,
                 default=0.5,
@@ -194,6 +200,14 @@ class ContinualModel(BaseModel):
             parser.add_argument(
                 "--D_rotation", action="store_true", default=False,
             )
+            parser.add_argument(
+                "--repr_mode",
+                type=str,
+                default="freeze",
+                help="freeze | flow | distillation: When switching from representation "
+                + "to traduction: either freeze the encoder or let gradients flow. "
+                + "Set continual for flow + distillation loss",
+            )
 
         return parser
 
@@ -218,26 +232,11 @@ class ContinualModel(BaseModel):
             "cycle_B",
             "B_idt",
             "G_D_rotation",
-            "G"
-            # "G_A_r",
-            # "G_A_d",
-            # "G_B_r",
-            # "G_B_d",
-            # "G_gA",
-            # "G_gB",
+            "G",
         ]
 
         for t in self.tasks:
             self.loss_names += t.loss_names
-
-        # specify the images you want to save/display. The training/test scripts
-        # will call <BaseModel.get_current_visuals>
-        # visual_names_A = ["A_real", "B_fake", "A_rec"]
-        # visual_names_B = ["B_real", "A_fake", "B_rec"]
-        # if self.isTrain and self.opt.lambda_I > 0.0:
-        #     # if identity loss is used, we also visualize B_idt=G_A(B) ad A_idt=G_A(B)
-        #     visual_names_A.append("B_idt")
-        #     visual_names_B.append("A_idt")
 
         # combine visualizations for A and B
         self.visual_names = set(["A_real", "B_real"])
@@ -249,6 +248,7 @@ class ContinualModel(BaseModel):
             self.model_names = ["G_A", "G_B"]
 
         self.exp = None
+        self.ref_encoder_A = self.ref_encoder_B = None
 
         # define networks (both Generators and discriminators)
         # The naming is different from those used in the paper.
@@ -339,16 +339,13 @@ class ContinualModel(BaseModel):
             # create image buffer to store previously generated images
             # define loss functions
             self.criterionGAN = networks.GANLoss(opt.gan_mode).to(self.device)
-            # define GAN loss.
             self.criterionGray = torch.nn.L1Loss()
             self.criterionCycle = torch.nn.L1Loss()
             self.criterionIdt = torch.nn.L1Loss()
-            # initialize optimizers; schedulers will be automatically created
-            # by function <BaseModel.setup>.
-
             self.rotationCriterion = torch.nn.CrossEntropyLoss()
             self.jigsawCriterion = torch.nn.CrossEntropyLoss()
             self.depthCriterion = torch.nn.L1Loss()
+            self.distillationCriterion = torch.nn.L1Loss()
 
             if isinstance(self.netG_A, nn.DataParallel):
                 params = {
@@ -495,6 +492,9 @@ class ContinualModel(BaseModel):
             # --------------------
             self.A_z = self.netG_A.module.encoder(self.A_real)
             self.B_z = self.netG_B.module.encoder(self.B_real)
+            if self.opt.repr_mode == "distillation" and self.repr_is_frozen:
+                self.A_z_ref = self.ref_encoder_A(self.A_real)
+                self.B_z_ref = self.ref_encoder_B(self.B_real)
 
             if should["identity"]:
                 self.A_idt = self.netG_A.module.decoder(self.B_z)
@@ -620,22 +620,6 @@ class ContinualModel(BaseModel):
                 loss.backward()
                 setattr(self, f"loss_D_{domain}_{t.key}", loss)
 
-    # def backward_D_rotation_basic(self, netD, rotation_input, rotation_target):
-    #     rotation_pred = netD(rotation=rotation_input)
-    #     loss = self.rotationCriterion(rotation_pred, rotation_target)
-    #     loss.backward()
-    #     return loss
-
-    # def backward_D_rotation(self):
-    #     #! add set_requires_grad
-    #     suffixes = [""] + ["_" + t.key for t in self.tasks if t.needs_D]
-    #     for domain in ["A", "B"]:
-    #         rotation_input = self.get(f"{domain}_rotation")
-    #         rotation_target = self.get(f"{domain}_rotation_target")
-    #         for suffix in suffixes:
-    #             netD = self.get(f"netD_{domain}{suffix}")
-    #             self.backward_D_rotation_basic(netD, rotation_input, rotation_target)
-
     def backward_D_A(self):
         """Calculate GAN loss for discriminator D_A"""
         B_fake = self.fake_B_pool.query(self.B_fake)
@@ -720,6 +704,7 @@ class ContinualModel(BaseModel):
         lambda_R = self.opt.lambda_R
         lambda_G = self.opt.lambda_G
         lambda_J = self.opt.lambda_J
+        lambda_distillation = self.opt.lambda_distillation
 
         lambda_total = 0
 
@@ -858,6 +843,18 @@ class ContinualModel(BaseModel):
                 )
                 lambda_total += 2 * self.opt.lambda_DR
 
+            if self.opt.repr_mode == "distillation" and self.repr_is_frozen:
+                self.loss_G_distillation_A = (
+                    self.distillationCriterion(self.A_z, self.A_z_ref)
+                    * lambda_distillation
+                )
+                self.loss_G_distillation_B = (
+                    self.distillationCriterion(self.B_z, self.B_z_ref)
+                    * lambda_distillation
+                )
+                lambda_total += 2 * lambda_distillation
+                self.loss_G += self.loss_G_distillation_A + self.loss_G_distillation_B
+
             self.loss_G += (
                 self.loss_G_A
                 + self.loss_G_B
@@ -920,7 +917,7 @@ class ContinualModel(BaseModel):
                 return
             else:
                 print("No schedule update: " + s)
-                self.exp.log_text("No schedule update: " + s + f" ({self.total_iters}))
+                self.exp.log_text("No schedule update: " + s + f" ({self.total_iters})")
 
     def additional_schedule(self, metrics):
         for t in self.tasks:
@@ -949,7 +946,9 @@ class ContinualModel(BaseModel):
                             self.exp.log_parameter(
                                 f"schedule_start_{nk}", self.total_iters
                             )
-                            self.exp.log_text(f"schedule_start_{nk}: {self.total_iters}")
+                            self.exp.log_text(
+                                f"schedule_start_{nk}: {self.total_iters}"
+                            )
             else:
                 print("No update for " + s)
                 self.exp.log_text("No update for " + s + f" ({self.total_iters})")
@@ -995,31 +994,36 @@ class ContinualModel(BaseModel):
                             f"schedule_stop_representation {self.total_iters}"
                         )
                 if isinstance(self.netG_A, nn.DataParallel):
-                    freeze = [
-                        self.netG_A.module.encoder,
-                        self.netG_B.module.encoder,
-                    ]
+                    freeze = (
+                        [self.netG_A.module.encoder, self.netG_B.module.encoder]
+                        if self.opt.repr_mode == "freeze"
+                        else []
+                    )
                     freeze += [
                         rgetattr(self, f"netG_{d}.module.{t.module_name}")
                         for d in ["A", "B"]
                         for t in self.tasks
                     ]
-                    self.set_requires_grad(freeze, requires_grad=False)
                     unfreeze = [self.netG_A.module.decoder, self.netG_B.module.decoder]
-                    self.set_requires_grad(unfreeze, requires_grad=True)
                 else:
-                    freeze = [
-                        self.netG_A.encoder,
-                        self.netG_B.encoder,
-                    ]
+                    freeze = (
+                        [self.netG_A.encoder, self.netG_B.encoder]
+                        if self.opt.repr_mode == "freeze"
+                        else []
+                    )
                     freeze += [
                         rgetattr(self, f"netG_{d}.{t.module_name}")
                         for d in ["A", "B"]
                         for t in self.tasks
                     ]
-                    self.set_requires_grad(freeze, requires_grad=False)
                     unfreeze = [self.netG_A.decoder, self.netG_B.decoder]
-                    self.set_requires_grad(unfreeze, requires_grad=True)
+                self.set_requires_grad(freeze, requires_grad=False)
+                self.set_requires_grad(unfreeze, requires_grad=True)
+
+                if self.opt.repr_mode == "distillation":
+                    print(">>> Distillation")
+                    self.update_ref_encoder()
+
                 self.repr_is_frozen = True
         else:
             print("No schedule update:\n" + s)
@@ -1057,35 +1061,43 @@ class ContinualModel(BaseModel):
 
             if not self.repr_is_frozen:
                 if isinstance(self.netG_A, nn.DataParallel):
-                    models = [
-                        self.netG_A.module.encoder,
-                        self.netG_B.module.encoder,
-                    ]
-                    models += [
+                    freeze = (
+                        [self.netG_A.module.encoder, self.netG_B.module.encoder]
+                        if self.opt.repr_mode == "freeze"
+                        else []
+                    )
+                    freeze += [
                         rgetattr(self, f"netG_{d}.module.{t.module_name}")
                         for d in ["A", "B"]
                         for t in self.tasks
                     ]
-                    self.set_requires_grad(models, requires_grad=False)
+                    unfreeze = [self.netG_A.module.decoder, self.netG_B.module.decoder]
                 else:
-                    models = [
-                        self.netG_A.encoder,
-                        self.netG_B.encoder,
-                    ]
-                    models += [
+                    freeze = (
+                        [self.netG_A.encoder, self.netG_B.encoder]
+                        if self.opt.repr_mode == "freeze"
+                        else []
+                    )
+                    freeze += [
                         rgetattr(self, f"netG_{d}.{t.module_name}")
                         for d in ["A", "B"]
                         for t in self.tasks
                     ]
-                    self.set_requires_grad(models, requires_grad=False)
+                    unfreeze = [self.netG_A.decoder, self.netG_B.decoder]
+                self.set_requires_grad(freeze, requires_grad=False)
+                self.set_requires_grad(unfreeze, requires_grad=True)
+
+                if self.opt.repr_mode == "distillation":
+                    print(">>> Distillation")
+                    self.update_ref_encoder()
                 self.repr_is_frozen = True
         else:
             print("No schedule update:\n" + s)
-            self.log_text("No schedule update:\n" + s  + f" ({self.total_iters}))
+            self.log_text("No schedule update:\n" + s + f" ({self.total_iters})")
 
     def update_ref_encoder(self):
         alpha = self.opt.encoder_merge_ratio
-        if self.ref_encoder is None:
+        if self.ref_encoder_A is None:
             self.ref_encoder_A = self.netG_A.get_encoder()
             self.ref_encoder_A.load_state_dict(self.netG_A.encoder.state_dict())
 
@@ -1115,6 +1127,7 @@ class ContinualModel(BaseModel):
                 }
             )
             self.ref_encoder_B = new_encoder_B
+        self.set_requires_grad([self.ref_encoder_A, self.ref_encoder_B], False)
 
     def parallel_schedule(self, metrics):
         return

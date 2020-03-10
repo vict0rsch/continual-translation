@@ -3,7 +3,7 @@
 #SBATCH --gres=gpu:v100:1                     # Ask for 1 GPU
 #SBATCH --mem=32G                        # Ask for 32 GB of RAM
 #SBATCH -o /network/tmp1/schmidtv/continual/slurm-%j.out  # Write the log in $SCRATCH
-#SBATCH --partition unkillable
+#SBATCH --partition main
 
 #> first experiment to be able to scale minimal losses for other schedules:
 #> --task_schedule=parallel
@@ -37,22 +37,22 @@ python train.py \
     --dataroot $SLURM_TMPDIR/$continual_dataset \
     --model continual \
     --checkpoints_dir "/network/tmp1/schmidtv/continual/checkpoints" \
-    --display_freq 5000 \
+    --display_freq 2000 \
     --batch_size 3 \
     --netG "continual" \
     --git_hash="200517bdb5775dd616c7a6aa674395caf7eac6ac" \
-    --name "par_continual_small_0" \
+    --name "par_h2z_small_1_mila" \
     --task_schedule "parallel" \
-    --message "par h2z exp with gray & SMALL | par_continual_small_0.sh" \
-    --lambda_DA 1.2 \
-    --lambda_DB 1.2 \
-    --lambda_CA 10 \
-    --lambda_CB 10 \
+    --message "par h2z rotD large lambda task & translation smaller cycle | par_h2z_small_1_mila.sh" \
+    --lambda_DA 2 \
+    --lambda_DB 2 \
+    --lambda_CA 8 \
+    --lambda_CB 8 \
     --lambda_I 0.5 \
-    --lambda_R 1 \
-    --lambda_D 1 \
-    --lambda_G 1 \
-    --lambda_J 1 \
+    --lambda_R 2 \
+    --lambda_D 2 \
+    --lambda_G 2 \
+    --lambda_J 2 \
     --depth_loss_threshold 0.1 \
     --gray_loss_threshold 0.3 \
     --rotation_acc_threshold 0.9 \
@@ -62,7 +62,8 @@ python train.py \
     --lr_gray 0.0005 \
     --n_epochs_decay 100 \
     --n_epochs 200 \
-    --small_data 250
+    --small_data 250 \
+    --D_rotation
 
 
 # 5. Copy whatever you want to save on $SCRATCH

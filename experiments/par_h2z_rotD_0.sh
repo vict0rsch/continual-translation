@@ -50,8 +50,8 @@ python train.py \
     --lambda_J 1 \
     --depth_loss_threshold 0.1 \
     --gray_loss_threshold 0.3 \
-    --rotation_acc_threshold 0.9 \
-    --jigsaw_acc_threshold 0.7 \
+    --rotation_acc_threshold 0.85 \
+    --jigsaw_acc_threshold 0.85 \
     --lr_rotation 0.001 \
     --lr_depth 0.001 \
     --lr_gray 0.0005 \

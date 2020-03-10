@@ -95,7 +95,6 @@ if __name__ == "__main__":
                 t_data = iter_start_time - iter_data_time
             total_iters += opt.batch_size
             epoch_iter += opt.batch_size
-            repr_freeze = getattr(model, "repr_is_frozen", False)
 
             # ------------------------
             # -----  Train Step  -----
@@ -113,10 +112,6 @@ if __name__ == "__main__":
             if total_iters == opt.batch_size or total_iters % opt.display_freq == 0:
                 metrics = eval(model, test_dataset, exp, total_iters)
                 model.update_task_schedule(metrics)
-                repr_just_froze = repr_freeze == getattr(model, "repr_is_frozen", False)
-                if repr_just_froze:
-                    exp.log_parameter("freezing_step", total_iters)
-
             # print training losses and save logging information to the disk
             if total_iters % opt.print_freq == 0:
                 losses = model.get_current_losses()
