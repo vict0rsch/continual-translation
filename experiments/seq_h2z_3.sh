@@ -39,8 +39,8 @@ python train.py \
     --netG "continual" \
     --git_hash="200517bdb5775dd616c7a6aa674395caf7eac6ac" \
     --name "seq_rotD_small_0" \
-    --task_schedule "parallel" \
-    --message "par h2z exp with gray & SMALL | seq_rotD_small_0.sh" \
+    --task_schedule "sequential" \
+    --message "seq h2z exp rotD | seq_rotD_small_0.sh" \
     --lambda_CA 10 \
     --lambda_DA 1 \
     --lambda_CB 10 \
@@ -50,10 +50,10 @@ python train.py \
     --lambda_D 1 \
     --lambda_G 1 \
     --lambda_J 1 \
-    --depth_loss_threshold 0.15 \
-    --gray_loss_threshold 0.3 \
-    --rotation_acc_threshold 0.7 \
-    --jigsaw_acc_threshold 0.7 \
+    --depth_loss_threshold 0.12 \
+    --gray_loss_threshold 0.2 \
+    --rotation_acc_threshold 0.9 \
+    --jigsaw_acc_threshold 0.9 \
     --lr_rotation 0.001 \
     --lr_depth 0.001 \
     --lr_gray 0.0005 \

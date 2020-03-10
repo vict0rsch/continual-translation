@@ -36,9 +36,9 @@ python train.py \
     --batch_size 3 \
     --netG "continual" \
     --git_hash="e1f12153226be09dbe10ad613cd28f673f789c66" \
-    --name "par_h2z_rotD_1" \
-    --task_schedule "parallel" \
-    --message "par h2z rot D | par_h2z_rotD_0.sh" \
+    --name "rept_h2z_2" \
+    --task_schedule "reprensentational-traduction" \
+    --message "rept h2z rot D | rept_h2z_2.sh" \
     --lambda_CA 10 \
     --lambda_DA 1 \
     --lambda_CB 10 \

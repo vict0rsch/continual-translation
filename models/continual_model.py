@@ -234,6 +234,8 @@ class ContinualModel(BaseModel):
             "G_D_rotation",
             "G",
         ]
+        if opt.task_schedule == "continual" or opt.repr_mode == "distillation":
+            self.loss_names += ["G_distillation_A", "G_distillation_B"]
 
         for t in self.tasks:
             self.loss_names += t.loss_names
@@ -248,7 +250,6 @@ class ContinualModel(BaseModel):
             self.model_names = ["G_A", "G_B"]
 
         self.exp = None
-        self.ref_encoder_A = self.ref_encoder_B = None
 
         # define networks (both Generators and discriminators)
         # The naming is different from those used in the paper.
@@ -275,6 +276,8 @@ class ContinualModel(BaseModel):
             opt.init_gain,
             self.gpu_ids,
         )
+        self.is_dp = isinstance(self.netG_A, nn.DataParallel)
+        self.ref_encoder_A = self.ref_encoder_B = None
 
         if self.isTrain:  # define discriminators
             self.netD_A = networks.define_D(
@@ -347,7 +350,7 @@ class ContinualModel(BaseModel):
             self.depthCriterion = torch.nn.L1Loss()
             self.distillationCriterion = torch.nn.L1Loss()
 
-            if isinstance(self.netG_A, nn.DataParallel):
+            if self.is_dp:
                 params = {
                     "params": itertools.chain(
                         self.netG_A.module.encoder.parameters(),
@@ -486,15 +489,18 @@ class ContinualModel(BaseModel):
         # -------------------------------
         # -----  DataParallel Mode  -----
         # -------------------------------
-        if isinstance(self.netG_A, nn.DataParallel):
+        if self.is_dp:
             # --------------------
             # -----  Encode  -----
             # --------------------
             self.A_z = self.netG_A.module.encoder(self.A_real)
             self.B_z = self.netG_B.module.encoder(self.B_real)
-            if self.opt.repr_mode == "distillation" and self.repr_is_frozen:
-                self.A_z_ref = self.ref_encoder_A(self.A_real)
-                self.B_z_ref = self.ref_encoder_B(self.B_real)
+            if (
+                self.opt.repr_mode == "distillation" and self.repr_is_frozen
+            ) or self.opt.task_schedule == "continual":
+                if self.ref_encoder_A is not None:
+                    self.A_z_ref = self.ref_encoder_A(self.A_real)
+                    self.B_z_ref = self.ref_encoder_B(self.B_real)
 
             if should["identity"]:
                 self.A_idt = self.netG_A.module.decoder(self.B_z)
@@ -537,6 +543,12 @@ class ContinualModel(BaseModel):
             # --------------------
             self.A_z = self.netG_A.encoder(self.A_real)
             self.B_z = self.netG_B.encoder(self.B_real)
+            if (
+                self.opt.repr_mode == "distillation" and self.repr_is_frozen
+            ) or self.opt.task_schedule == "continual":
+                if self.ref_encoder_A is not None:
+                    self.A_z_ref = self.ref_encoder_A(self.A_real)
+                    self.B_z_ref = self.ref_encoder_B(self.B_real)
 
             if should["identity"]:
                 self.A_idt = self.netG_A.decoder(self.B_z)
@@ -843,7 +855,13 @@ class ContinualModel(BaseModel):
                 )
                 lambda_total += 2 * self.opt.lambda_DR
 
-            if self.opt.repr_mode == "distillation" and self.repr_is_frozen:
+        # --------------------------
+        # -----  Distillation  -----
+        # --------------------------
+        if (
+            self.opt.repr_mode == "distillation" and self.repr_is_frozen
+        ) or self.opt.task_schedule == "continual":
+            if self.ref_encoder_A is not None:
                 self.loss_G_distillation_A = (
                     self.distillationCriterion(self.A_z, self.A_z_ref)
                     * lambda_distillation
@@ -854,15 +872,17 @@ class ContinualModel(BaseModel):
                 )
                 lambda_total += 2 * lambda_distillation
                 self.loss_G += self.loss_G_distillation_A + self.loss_G_distillation_B
+            else:
+                self.loss_G_distillation_A = self.loss_G_distillation_B = 0
 
-            self.loss_G += (
-                self.loss_G_A
-                + self.loss_G_B
-                + self.loss_cycle_A
-                + self.loss_cycle_B
-                + self.loss_G_D_rotation
-            )
-            lambda_total += lambda_CA + lambda_CB
+        self.loss_G += (
+            self.loss_G_A
+            + self.loss_G_B
+            + self.loss_cycle_A
+            + self.loss_cycle_B
+            + self.loss_G_D_rotation
+        )
+        lambda_total += lambda_CA + lambda_CB
 
         scale = False
         if scale:
@@ -886,6 +906,8 @@ class ContinualModel(BaseModel):
                 condition = metric_A > threshold and metric_B > threshold
             else:
                 condition = metric_A < threshold and metric_B < threshold
+
+            condition = condition and self.should_compute(t.key)
 
             if condition:
                 next_key = self.tasks.task_after(t.key)
@@ -914,6 +936,53 @@ class ContinualModel(BaseModel):
                             self.exp.log_text(
                                 f"schedule_start_{nk}: {self.total_iters}"
                             )
+                return
+            else:
+                print("No schedule update: " + s)
+                self.exp.log_text("No schedule update: " + s + f" ({self.total_iters})")
+
+    def continual_schedule(self, metrics):
+        for t in self.tasks:
+            threshold = getattr(self.opt, t.threshold_key)
+            metric_A = metrics[f"test_G_A_{t.key}_{t.threshold_type}"]
+            metric_B = metrics[f"test_G_B_{t.key}_{t.threshold_type}"]
+            s = f"{t.key}_{t.threshold_type} : "
+            s += f"{metric_A} & {metric_B} vs {threshold}\n"
+            if t.threshold_type == "acc":
+                condition = metric_A > threshold and metric_B > threshold
+            else:
+                condition = metric_A < threshold and metric_B < threshold
+
+            condition = condition and self.should_compute(t.key)
+
+            if condition:
+                next_key = self.tasks.task_after(t.key)
+                if next_key is not None:
+                    next_keys = [next_key]
+                else:
+                    next_keys = ["identity", "translation"]
+
+                for i, nk in enumerate(next_keys):
+                    setattr(self, f"_should_compute_{t.key}", False)
+                    setattr(self, f"_should_compute_{nk}", True)
+                    print(f"\n\n>> Stop {t.key} ; Start {next_keys} <<\n")
+                    if self.exp:
+                        if i == 0:
+                            if f"schedule_stop_{t.key}" not in self.exp.params:
+                                self.exp.log_parameter(
+                                    f"schedule_stop_{t.key}", self.total_iters
+                                )
+                                self.exp.log_text(
+                                    f"schedule_stop_{t.key}: {self.total_iters}"
+                                )
+                        if f"schedule_start_{nk}" not in self.exp.params:
+                            self.exp.log_parameter(
+                                f"schedule_start_{nk}", self.total_iters,
+                            )
+                            self.exp.log_text(
+                                f"schedule_start_{nk}: {self.total_iters}"
+                            )
+                self.update_ref_encoder()
                 return
             else:
                 print("No schedule update: " + s)
@@ -993,7 +1062,7 @@ class ContinualModel(BaseModel):
                         self.exp.log_text(
                             f"schedule_stop_representation {self.total_iters}"
                         )
-                if isinstance(self.netG_A, nn.DataParallel):
+                if self.is_dp:
                     freeze = (
                         [self.netG_A.module.encoder, self.netG_B.module.encoder]
                         if self.opt.repr_mode == "freeze"
@@ -1060,7 +1129,7 @@ class ContinualModel(BaseModel):
                 setattr(self, f"_should_compute_{t.key}", False)
 
             if not self.repr_is_frozen:
-                if isinstance(self.netG_A, nn.DataParallel):
+                if self.is_dp:
                     freeze = (
                         [self.netG_A.module.encoder, self.netG_B.module.encoder]
                         if self.opt.repr_mode == "freeze"
@@ -1140,15 +1209,18 @@ class ContinualModel(BaseModel):
             self._should_compute_translation = True
             self.update_task_schedule = self.parallel_schedule
 
-        elif self.opt.task_schedule == "sequential":
+        elif self.opt.task_schedule in {"sequential", "continual"}:
             for t in self.tasks:
                 setattr(self, f"_should_compute_{t.key}", False)
             setattr(self, f"_should_compute_{self.tasks.keys[0]}", True)
             self._should_compute_identity = False
             self._should_compute_translation = False
-            self.update_task_schedule = self.sequential_schedule
+            if self.opt.task_schedule == "continual":
+                self.update_task_schedule = self.continual_schedule
+            else:
+                self.update_task_schedule = self.sequential_schedule
 
-        elif self.opt.task_schedule in {"additional", "continual"}:
+        elif self.opt.task_schedule in {"additional"}:
             for t in self.tasks:
                 setattr(self, f"_should_compute_{t.key}", False)
             setattr(self, f"_should_compute_{self.tasks.keys[0]}", True)
@@ -1163,7 +1235,7 @@ class ContinualModel(BaseModel):
             self._should_compute_translation = True
             self.repr_is_frozen = False
             self.update_task_schedule = self.representational_traduction_schedule
-            if isinstance(self.netG_A, nn.DataParallel):
+            if self.is_dp:
                 freeze = [self.netG_A.module.decoder, self.netG_B.module.decoder]
             else:
                 freeze = [self.netG_A.decoder, self.netG_B.decoder]
