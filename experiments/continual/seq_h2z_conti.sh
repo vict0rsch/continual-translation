@@ -38,7 +38,7 @@ python train.py \
     --display_freq 2000 \
     --batch_size 3 \
     --netG "continual" \
-    --git_hash="e1f12153226be09dbe10ad613cd28f673f789c66" \
+    --git_hash="02e3c82c7501194d06b8a19d9970bea30024acff" \
     --name "seq_h2z_conti" \
     --task_schedule "sequential" \
     --message "seq_h2z_conti.sh" \

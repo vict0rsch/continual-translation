@@ -1162,7 +1162,7 @@ class ContinualModel(BaseModel):
                 self.repr_is_frozen = True
         else:
             print("No schedule update:\n" + s)
-            self.log_text("No schedule update:\n" + s + f" ({self.total_iters})")
+            self.exp.log_text("No schedule update:\n" + s + f" ({self.total_iters})")
 
     def update_ref_encoder(self):
         alpha = self.opt.encoder_merge_ratio
@@ -1188,30 +1188,30 @@ class ContinualModel(BaseModel):
         else:
             if self.is_dp:
                 new_encoder_A = self.netG_A.module.get_encoder()
-                new_encoder_A = nn.DataParallel(
-                    new_encoder_A.to(self.opt.gpu_ids[0]), self.opt.gpu_ids
-                )
                 new_encoder_A.load_state_dict(
                     {
                         k: alpha * v1 + (1 - alpha) * v2
                         for (k, v1), (_, v2) in zip(
                             self.netG_A.module.encoder.state_dict().items(),
-                            self.ref_encoder_A.state_dict().items(),
+                            self.ref_encoder_A.module.state_dict().items(),
                         )
                     }
                 )
-                new_encoder_B = self.netG_B.module.get_encoder()
-                new_encoder_B = nn.DataParallel(
-                    new_encoder_B.to(self.opt.gpu_ids[0]), self.opt.gpu_ids
+                new_encoder_A = nn.DataParallel(
+                    new_encoder_A.to(self.opt.gpu_ids[0]), self.opt.gpu_ids
                 )
+                new_encoder_B = self.netG_B.module.get_encoder()
                 new_encoder_B.load_state_dict(
                     {
                         k: alpha * v1 + (1 - alpha) * v2
                         for (k, v1), (_, v2) in zip(
                             self.netG_B.module.encoder.state_dict().items(),
-                            self.ref_encoder_B.state_dict().items(),
+                            self.ref_encoder_B.module.state_dict().items(),
                         )
                     }
+                )
+                new_encoder_B = nn.DataParallel(
+                    new_encoder_B.to(self.opt.gpu_ids[0]), self.opt.gpu_ids
                 )
 
                 self.ref_encoder_A = new_encoder_A

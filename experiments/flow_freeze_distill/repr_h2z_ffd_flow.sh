@@ -38,7 +38,7 @@ python train.py \
     --display_freq 2000 \
     --batch_size 3 \
     --netG "continual" \
-    --git_hash="e1f12153226be09dbe10ad613cd28f673f789c66" \
+    --git_hash="9bda085070c0a16f3191117bcc4a0ffbb1dd67ce" \
     --name "repr_h2z_ffd_flow" \
     --task_schedule "representational" \
     --message "repr_h2z_ffd_flow.sh" \
