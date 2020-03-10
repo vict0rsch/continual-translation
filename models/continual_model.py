@@ -854,6 +854,13 @@ class ContinualModel(BaseModel):
                     self.loss_G_A_D_rotation + self.loss_G_B_D_rotation
                 )
                 lambda_total += 2 * self.opt.lambda_DR
+            self.loss_G += (
+                self.loss_G_A
+                + self.loss_G_B
+                + self.loss_cycle_A
+                + self.loss_cycle_B
+                + self.loss_G_D_rotation
+            )
 
         # --------------------------
         # -----  Distillation  -----
@@ -875,13 +882,6 @@ class ContinualModel(BaseModel):
             else:
                 self.loss_G_distillation_A = self.loss_G_distillation_B = 0
 
-        self.loss_G += (
-            self.loss_G_A
-            + self.loss_G_B
-            + self.loss_cycle_A
-            + self.loss_cycle_B
-            + self.loss_G_D_rotation
-        )
         lambda_total += lambda_CA + lambda_CB
 
         scale = False
@@ -1167,35 +1167,58 @@ class ContinualModel(BaseModel):
     def update_ref_encoder(self):
         alpha = self.opt.encoder_merge_ratio
         if self.ref_encoder_A is None:
-            self.ref_encoder_A = self.netG_A.get_encoder()
-            self.ref_encoder_A.load_state_dict(self.netG_A.encoder.state_dict())
-
-            self.ref_encoder_B = self.netG_B.get_encoder()
-            self.ref_encoder_B.load_state_dict(self.netG_B.encoder.state_dict())
+            if self.is_dp:
+                self.ref_encoder_A = self.netG_A.module.get_encoder()
+                self.ref_encoder_A.load_state_dict(
+                    self.netG_A.module.encoder.state_dict()
+                )
+                self.ref_encoder_A = nn.DataParallel(
+                    self.ref_encoder_A.to(self.opt.gpu_ids[0]), self.opt.gpu_ids
+                )
+                self.ref_encoder_B = self.netG_B.module.get_encoder()
+                self.ref_encoder_B.load_state_dict(
+                    self.netG_B.module.encoder.state_dict()
+                )
+                self.ref_encoder_B = nn.DataParallel(
+                    self.ref_encoder_B.to(self.opt.gpu_ids[0]), self.opt.gpu_ids
+                )
+            else:
+                raise NotImplementedError("No update_ref_encoder without gpus")
 
         else:
-            new_encoder_A = self.netG_A.get_encoder()
-            new_encoder_A.load_state_dict(
-                {
-                    k: alpha * v1 + (1 - alpha) * v2
-                    for (k, v1), (_, v2) in zip(
-                        self.netG_A.encoder.state_dict().items(),
-                        self.ref_encoder_A.state_dict().items(),
-                    )
-                }
-            )
-            self.ref_encoder_A = new_encoder_A
-            new_encoder_B = self.netG_B.get_encoder()
-            new_encoder_B.load_state_dict(
-                {
-                    k: alpha * v1 + (1 - alpha) * v2
-                    for (k, v1), (_, v2) in zip(
-                        self.netG_B.encoder.state_dict().items(),
-                        self.ref_encoder_B.state_dict().items(),
-                    )
-                }
-            )
-            self.ref_encoder_B = new_encoder_B
+            if self.is_dp:
+                new_encoder_A = self.netG_A.module.get_encoder()
+                new_encoder_A = nn.DataParallel(
+                    new_encoder_A.to(self.opt.gpu_ids[0]), self.opt.gpu_ids
+                )
+                new_encoder_A.load_state_dict(
+                    {
+                        k: alpha * v1 + (1 - alpha) * v2
+                        for (k, v1), (_, v2) in zip(
+                            self.netG_A.module.encoder.state_dict().items(),
+                            self.ref_encoder_A.state_dict().items(),
+                        )
+                    }
+                )
+                new_encoder_B = self.netG_B.module.get_encoder()
+                new_encoder_B = nn.DataParallel(
+                    new_encoder_B.to(self.opt.gpu_ids[0]), self.opt.gpu_ids
+                )
+                new_encoder_B.load_state_dict(
+                    {
+                        k: alpha * v1 + (1 - alpha) * v2
+                        for (k, v1), (_, v2) in zip(
+                            self.netG_B.module.encoder.state_dict().items(),
+                            self.ref_encoder_B.state_dict().items(),
+                        )
+                    }
+                )
+
+                self.ref_encoder_A = new_encoder_A
+                self.ref_encoder_B = new_encoder_B
+            else:
+                raise NotImplementedError("No update_ref_encoder without gpus")
+
         self.set_requires_grad([self.ref_encoder_A, self.ref_encoder_B], False)
 
     def parallel_schedule(self, metrics):

@@ -5,6 +5,7 @@ from pathlib import Path
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
+import torch.nn as nn
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from options.train_options import TrainOptions
@@ -40,7 +41,8 @@ if __name__ == "__main__":
     g_step = False
     eval_model = False
     show_rot = False
-    full_step = True
+    full_step = False
+    merge_encoders = False
 
     if show_rot:
         b = next(iter(dataset))
@@ -112,3 +114,24 @@ if __name__ == "__main__":
             exp.add_tag(opt.task_schedule)
         exp.add_tag("functional_test")
         metrics = eval(model, test_dataset, exp, 1234)
+
+    if merge_encoders:
+        model = create_model(opt)
+        encA = model.netG_A.module.get_encoder()
+        encA = nn.DataParallel(encA.to(0), [0])
+        encB = model.netG_B.module.get_encoder()
+        encB = nn.DataParallel(encB.to(0), [0])
+
+        print(encA.module.model[1].weight[0, 0, 0])
+        print(encB.module.model[1].weight[0, 0, 0])
+
+        alpha = 0.5
+        encB.load_state_dict(
+            {
+                k: alpha * v1 + (1 - alpha) * v2
+                for (k, v1), (_, v2) in zip(
+                    encA.state_dict().items(), encB.state_dict().items(),
+                )
+            }
+        )
+        print(encB.module.model[1].weight[0, 0, 0])
