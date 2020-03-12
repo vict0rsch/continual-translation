@@ -81,7 +81,10 @@ if __name__ == "__main__":
     iter_times.append(1)
     print("starting")
 
-    for epoch in range(opt.epoch_count, opt.n_epochs + opt.n_epochs_decay + 1):
+    epoch = opt.epoch_count - 1
+    decay_epochs = 0
+    while epoch > -2:
+        epoch += 1
         # outer loop for different epochs; we save the model by <epoch_count>,
         # <epoch_count>+<save_latest_freq>
         epoch_start_time = time.time()  # timer for entire epoch
@@ -151,5 +154,21 @@ if __name__ == "__main__":
             "End of epoch %d / %d \t Time Taken: %d sec"
             % (epoch, opt.n_epochs + opt.n_epochs_decay, time.time() - epoch_start_time)
         )
-        model.update_learning_rate()  # update learning rates at the end of every epoch.
+        # model.update_learning_rate()  # update learning rates at the end of every epoch.
+        if epoch > opt.n_epochs:
+            if opt.model == "continual":
+                if model.should_compute("translation"):
+                    decay_epochs += 1
+            else:
+                decay_epochs += 1
+
+        if decay_epochs > 0:
+            for g in model.optimizer_G.param_groups:
+                g["lr"] = g["lr"] * (1 - decay_epochs / (opt.n_epochs_decay + 1))
+            for g in model.optimizer_D.param_groups:
+                g["lr"] = g["lr"] * (1 - decay_epochs / (opt.n_epochs_decay + 1))
+
+        if decay_epochs > opt.n_epochs_decay:
+            epoch = -2
+
     exp.add_tag("finished")
