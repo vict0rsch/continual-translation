@@ -169,20 +169,20 @@ class ContinualModel(BaseModel):
             parser.add_argument(
                 "--lr_rotation",
                 type=float,
-                default=0.0002,
+                default=0,
                 help="minimal identity loss to switch task (representational only)",
             )
             parser.add_argument(
                 "--lr_depth",
                 type=float,
-                default=0.0002,
+                default=0,
                 help="minimal identity loss to switch task (representational only)",
             )
             parser.add_argument(
-                "--lr_gray", type=float, default=0.0002,
+                "--lr_gray", type=float, default=0,
             )
             parser.add_argument(
-                "--lr_jigsaw", type=float, default=0.0002,
+                "--lr_jigsaw", type=float, default=0,
             )
             parser.add_argument(
                 "--encoder_merge_ratio",
@@ -366,9 +366,11 @@ class ContinualModel(BaseModel):
                         getattr(self.netG_B.module, t.module_name).parameters(),
                     )
                     if t.needs_lr:
-                        all_G_params += [
-                            {"params": tp, "lr": getattr(opt, "lr_" + t.key)}
-                        ]
+                        if getattr(opt, "lr_" + t.key) > 0:
+                            lr = getattr(opt, "lr_" + t.key)
+                        else:
+                            lr = opt.lr
+                        all_G_params += [{"params": tp, "lr": lr}]
                     else:
                         all_G_params += [{"params": tp}]
             else:
@@ -387,9 +389,11 @@ class ContinualModel(BaseModel):
                         getattr(self.netG_B, t.module_name).parameters(),
                     )
                     if t.needs_lr:
-                        all_G_params += [
-                            {"params": tp, "lr": getattr(opt, "lr_" + t.key)}
-                        ]
+                        if getattr(opt, "lr_" + t.key) > 0:
+                            lr = getattr(opt, "lr_" + t.key)
+                        else:
+                            lr = opt.lr
+                        all_G_params += [{"params": tp, "lr": lr}]
                     else:
                         all_G_params += [{"params": tp}]
 
