@@ -38,10 +38,10 @@ python train.py \
     --display_freq 2000 \
     --batch_size 5 \
     --netG "continual" \
-    --git_hash="94827472ebc869e0d509784f7c3f0f4d5483bab0" \
+    --git_hash="4485ad031dec1f572a5394f560a62023cb5e01b2" \
     --name "cont_10_h2z_conti" \
     --task_schedule "continual" \
-    --message "cont_10_h2z_conti.sh" \
+    --message "no-rot_D + radam + cont_10_h2z_conti.sh" \
     --lambda_CA 12 \
     --lambda_DA 2 \
     --lambda_CB 12 \

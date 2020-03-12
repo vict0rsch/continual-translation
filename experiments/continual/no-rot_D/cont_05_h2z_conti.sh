@@ -39,10 +39,10 @@ python train.py \
     --batch_size 5 \
     --netG "continual" \
     --init_type "kaiming" \
-    --git_hash="94827472ebc869e0d509784f7c3f0f4d5483bab0" \
+    --git_hash="4485ad031dec1f572a5394f560a62023cb5e01b2" \
     --name "cont_05_h2z_conti" \
     --task_schedule "continual" \
-    --message "cont_05_h2z_conti.sh" \
+    --message "no-rot_D + radam + cont_05_h2z_conti.sh" \
     --lambda_CA 10 \
     --lambda_DA 1 \
     --lambda_CB 10 \
