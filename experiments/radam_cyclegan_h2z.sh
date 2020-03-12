@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 #SBATCH --time=24:00:00
-#SBATCH -o /scratch/vsch/continual/slurm-%j.out
+#SBATCH -o $SCRATCH/continual/slurm-%j.out
 
 
 export continual_dataset="h2z_d"
@@ -23,7 +23,7 @@ else
     module load python/3.7.4
     module load httpproxy
     source $HOME/continual-translation/ctenv/bin/activate
-    cp /scratch/vsch/continual/$continual_dataset.zip $SLURM_TMPDIR
+    cp $SCRATCH/continual/$continual_dataset.zip $SLURM_TMPDIR
 fi
 
 cd $HOME/continual-translation
@@ -34,7 +34,7 @@ python train.py \
     --num_threads 10 \
     --dataroot $SLURM_TMPDIR/$continual_dataset \
     --model cycle_gan \
-    --checkpoints_dir "/scratch/vsch/continual/checkpoints" \
+    --checkpoints_dir $SCRATCH/continual/checkpoints \
     --display_freq 2000 \
     --batch_size 5 \
     --netG "resnet_9blocks"
