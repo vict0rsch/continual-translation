@@ -6,8 +6,8 @@ from . import networks
 from util.util import angles_to_tensors
 import torch.nn as nn
 from .task import AuxiliaryTasks
-import time
 import functools
+import torch_optimizer as optim
 
 DELIMITER = "."
 
@@ -393,7 +393,7 @@ class ContinualModel(BaseModel):
                     else:
                         all_G_params += [{"params": tp}]
 
-            self.optimizer_G = torch.optim.Adam(
+            self.optimizer_G = optim.RAdam(
                 all_G_params, lr=opt.lr, betas=(opt.beta1, 0.999),
             )
             all_D_params = []
@@ -402,7 +402,7 @@ class ContinualModel(BaseModel):
                     attr = self.get(d)
                     assert isinstance(attr, nn.Module)
                     all_D_params.append(attr.parameters())
-            self.optimizer_D = torch.optim.Adam(
+            self.optimizer_D = optim.RAdam(
                 itertools.chain(*all_D_params), lr=opt.lr, betas=(opt.beta1, 0.999),
             )
             self.optimizers.append(self.optimizer_G)

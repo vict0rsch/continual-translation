@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --account=rpp-bengioy
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=10
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 #SBATCH --time=24:00:00
@@ -31,18 +31,17 @@ unzip $SLURM_TMPDIR/$continual_dataset.zip -d $SLURM_TMPDIR > /dev/null
 
 
 python train.py \
-    --num_threads 8 \
+    --num_threads 10 \
     --dataroot $SLURM_TMPDIR/$continual_dataset \
     --model continual \
     --checkpoints_dir "/scratch/vsch/continual/checkpoints" \
     --display_freq 2000 \
-    --batch_size 5 \
+    --batch_size 3 \
     --netG "continual" \
-    --init_type "kaiming" \
-    --git_hash="94827472ebc869e0d509784f7c3f0f4d5483bab0" \
-    --name "cont_05_h2z_conti" \
-    --task_schedule "continual" \
-    --message "cont_05_h2z_conti.sh" \
+    --git_hash="9bda085070c0a16f3191117bcc4a0ffbb1dd67ce" \
+    --name "par_h2z_compare_d_rot_yes_1" \
+    --task_schedule "parallel" \
+    --message "par_h2z_compare_d_rot_no.sh" \
     --lambda_CA 10 \
     --lambda_DA 1 \
     --lambda_CB 10 \
@@ -56,12 +55,10 @@ python train.py \
     --gray_loss_threshold 0.3 \
     --rotation_acc_threshold 0.85 \
     --jigsaw_acc_threshold 0.85 \
-    --lr 0.0005 \
     --lr_rotation 0.001 \
     --lr_depth 0.001 \
     --lr_gray 0.0005 \
     --lr_jigsaw 0.001 \
     --n_epochs_decay 100 \
     --n_epochs 200 \
-    --D_rotation \
-    --encoder_merge_ratio 0.5
+    --D_rotation

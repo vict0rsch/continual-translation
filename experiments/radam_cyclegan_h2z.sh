@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --account=rpp-bengioy
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=10
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 #SBATCH --time=24:00:00
@@ -31,37 +31,16 @@ unzip $SLURM_TMPDIR/$continual_dataset.zip -d $SLURM_TMPDIR > /dev/null
 
 
 python train.py \
-    --num_threads 8 \
+    --num_threads 10 \
     --dataroot $SLURM_TMPDIR/$continual_dataset \
-    --model continual \
+    --model cycle_gan \
     --checkpoints_dir "/scratch/vsch/continual/checkpoints" \
     --display_freq 2000 \
     --batch_size 5 \
-    --netG "continual" \
+    --netG "resnet_9blocks"
     --init_type "kaiming" \
-    --git_hash="94827472ebc869e0d509784f7c3f0f4d5483bab0" \
-    --name "cont_05_h2z_conti" \
-    --task_schedule "continual" \
-    --message "cont_05_h2z_conti.sh" \
-    --lambda_CA 10 \
-    --lambda_DA 1 \
-    --lambda_CB 10 \
-    --lambda_DB 1 \
-    --lambda_I 0.5 \
-    --lambda_R 1 \
-    --lambda_D 1 \
-    --lambda_G 1 \
-    --lambda_J 1 \
-    --depth_loss_threshold 0.15 \
-    --gray_loss_threshold 0.3 \
-    --rotation_acc_threshold 0.85 \
-    --jigsaw_acc_threshold 0.85 \
+    --name "radam_cyclegan_h2z" \
+    --message "radam_cyclegan_h2z.sh" \
     --lr 0.0005 \
-    --lr_rotation 0.001 \
-    --lr_depth 0.001 \
-    --lr_gray 0.0005 \
-    --lr_jigsaw 0.001 \
     --n_epochs_decay 100 \
-    --n_epochs 200 \
-    --D_rotation \
-    --encoder_merge_ratio 0.5
+    --n_epochs 200

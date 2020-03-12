@@ -38,14 +38,14 @@ python train.py \
     --display_freq 2000 \
     --batch_size 3 \
     --netG "continual" \
-    --git_hash="9bda085070c0a16f3191117bcc4a0ffbb1dd67ce" \
+    --git_hash="94827472ebc869e0d509784f7c3f0f4d5483bab0" \
     --name "cont_10_h2z_conti" \
     --task_schedule "continual" \
     --message "cont_10_h2z_conti.sh" \
-    --lambda_CA 10 \
-    --lambda_DA 1 \
-    --lambda_CB 10 \
-    --lambda_DB 1 \
+    --lambda_CA 12 \
+    --lambda_DA 2 \
+    --lambda_CB 12 \
+    --lambda_DB 2 \
     --lambda_I 0.5 \
     --lambda_R 1 \
     --lambda_D 1 \

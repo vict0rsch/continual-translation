@@ -39,9 +39,9 @@ python train.py \
     --batch_size 3 \
     --netG "continual" \
     --git_hash="9bda085070c0a16f3191117bcc4a0ffbb1dd67ce" \
-    --name "repr_h2z_ffd_flow" \
+    --name "repr_h2z_ffd_distill" \
     --task_schedule "representational" \
-    --message "repr_h2z_ffd_flow.sh" \
+    --message "repr_h2z_ffd_distill.sh" \
     --lambda_CA 10 \
     --lambda_DA 1 \
     --lambda_CB 10 \

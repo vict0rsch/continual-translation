@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --account=rpp-bengioy
-#SBATCH --cpus-per-task=8
+#SBATCH --cpus-per-task=10
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 #SBATCH --time=24:00:00
@@ -31,7 +31,7 @@ unzip $SLURM_TMPDIR/$continual_dataset.zip -d $SLURM_TMPDIR > /dev/null
 
 
 python train.py \
-    --num_threads 8 \
+    --num_threads 10 \
     --dataroot $SLURM_TMPDIR/$continual_dataset \
     --model continual \
     --checkpoints_dir "/scratch/vsch/continual/checkpoints" \
@@ -40,9 +40,9 @@ python train.py \
     --netG "continual" \
     --init_type "kaiming" \
     --git_hash="94827472ebc869e0d509784f7c3f0f4d5483bab0" \
-    --name "cont_05_h2z_conti" \
+    --name "cont_h2z_compare_d_rot_no" \
     --task_schedule "continual" \
-    --message "cont_05_h2z_conti.sh" \
+    --message "cont_h2z_compare_d_rot_no.sh" \
     --lambda_CA 10 \
     --lambda_DA 1 \
     --lambda_CB 10 \
@@ -63,5 +63,4 @@ python train.py \
     --lr_jigsaw 0.001 \
     --n_epochs_decay 100 \
     --n_epochs 200 \
-    --D_rotation \
     --encoder_merge_ratio 0.5
