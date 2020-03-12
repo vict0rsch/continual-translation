@@ -73,6 +73,9 @@ if __name__ == "__main__":
     model.exp = exp
     model.setup(opt)  # regular setup: load and print networks; create schedulers
 
+    if "radam" in model.optimizer_G.__class__.__name__.lower():
+        exp.log_parameter("radam", True)
+
     # ------------------------
     # -----  Iterations  -----
     # ------------------------
