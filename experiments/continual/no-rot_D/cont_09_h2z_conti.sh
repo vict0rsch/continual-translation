@@ -39,10 +39,10 @@ python train.py \
     --batch_size 5 \
     --init_type "kaiming" \
     --netG "continual" \
-    --git_hash="4485ad031dec1f572a5394f560a62023cb5e01b2" \
+    --git_hash="13078a3b90ffc1d2cc0482726dfcd8750d705ee4" \
     --name "cont_09_h2z_conti" \
     --task_schedule "continual" \
-    --message "no-rot_D + radam + cont_09_h2z_conti.sh" \
+    --message "smaller lr no-rot_D + radam + cont_09_h2z_conti.sh" \
     --lambda_CA 10 \
     --lambda_DA 2 \
     --lambda_CB 10 \
@@ -56,7 +56,7 @@ python train.py \
     --gray_loss_threshold 0.3 \
     --rotation_acc_threshold 0.85 \
     --jigsaw_acc_threshold 0.85 \
-    --lr 0.001 \
+    --lr 0.0005 \
     --n_epochs_decay 100 \
     --n_epochs 200 \
     --encoder_merge_ratio 0.9

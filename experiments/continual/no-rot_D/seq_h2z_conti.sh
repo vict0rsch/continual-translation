@@ -38,10 +38,10 @@ python train.py \
     --display_freq 2000 \
     --batch_size 5 \
     --netG "continual" \
-    --git_hash="4485ad031dec1f572a5394f560a62023cb5e01b2" \
+    --git_hash="13078a3b90ffc1d2cc0482726dfcd8750d705ee4" \
     --name "seq_h2z_conti" \
     --task_schedule "sequential" \
-    --message "no-rot_D + radam + seq_h2z_conti.sh" \
+    --message "smaller lr no-rot_D + radam + seq_h2z_conti.sh" \
     --lambda_CA 10 \
     --lambda_DA 1 \
     --lambda_CB 10 \
@@ -55,6 +55,6 @@ python train.py \
     --gray_loss_threshold 0.3 \
     --rotation_acc_threshold 0.85 \
     --jigsaw_acc_threshold 0.85 \
-    --lr 0.001 \
+    --lr 0.0005 \
     --n_epochs_decay 100 \
     --n_epochs 200 \

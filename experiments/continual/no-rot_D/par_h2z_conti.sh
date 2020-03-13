@@ -39,13 +39,13 @@ python train.py \
     --batch_size 5 \
     --netG "continual" \
     --git_hash="13078a3b90ffc1d2cc0482726dfcd8750d705ee4" \
-    --name "cont_10_h2z_conti" \
-    --task_schedule "continual" \
-    --message "smaller lr no-rot_D + radam + cont_10_h2z_conti.sh" \
-    --lambda_CA 12 \
-    --lambda_DA 2 \
-    --lambda_CB 12 \
-    --lambda_DB 2 \
+    --name "seq_h2z_conti" \
+    --task_schedule "parallel" \
+    --message "smaller lr no-rot_D + radam + seq_h2z_conti.sh" \
+    --lambda_CA 10 \
+    --lambda_DA 1 \
+    --lambda_CB 10 \
+    --lambda_DB 1 \
     --lambda_I 0.5 \
     --lambda_R 1 \
     --lambda_D 1 \
@@ -58,4 +58,3 @@ python train.py \
     --lr 0.0005 \
     --n_epochs_decay 100 \
     --n_epochs 200 \
-    --encoder_merge_ratio 1.0
