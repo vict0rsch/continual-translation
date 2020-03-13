@@ -357,7 +357,8 @@ class ContinualModel(BaseModel):
                         self.netG_A.module.decoder.parameters(),
                         self.netG_B.module.encoder.parameters(),
                         self.netG_B.module.decoder.parameters(),
-                    )
+                    ),
+                    "group_name": "default",
                 }
                 all_G_params = [params]
                 for t in self.tasks:
@@ -370,9 +371,9 @@ class ContinualModel(BaseModel):
                             lr = getattr(opt, "lr_" + t.key)
                         else:
                             lr = opt.lr
-                        all_G_params += [{"params": tp, "lr": lr}]
+                        all_G_params += [{"group_name": t.key, "params": tp, "lr": lr}]
                     else:
-                        all_G_params += [{"params": tp}]
+                        all_G_params += [{"group_name": t.key, "params": tp}]
             else:
                 params = {
                     "params": itertools.chain(
@@ -380,7 +381,8 @@ class ContinualModel(BaseModel):
                         self.netG_A.decoder.parameters(),
                         self.netG_B.encoder.parameters(),
                         self.netG_B.decoder.parameters(),
-                    )
+                    ),
+                    "group_name": "default",
                 }
                 all_G_params = [params]
                 for t in self.tasks:
@@ -393,9 +395,9 @@ class ContinualModel(BaseModel):
                             lr = getattr(opt, "lr_" + t.key)
                         else:
                             lr = opt.lr
-                        all_G_params += [{"params": tp, "lr": lr}]
+                        all_G_params += [{"group_name": t.key, "params": tp, "lr": lr}]
                     else:
-                        all_G_params += [{"params": tp}]
+                        all_G_params += [{"group_name": t.key, "params": tp}]
 
             self.optimizer_G = optim.RAdam(
                 all_G_params, lr=opt.lr, betas=(opt.beta1, 0.999),

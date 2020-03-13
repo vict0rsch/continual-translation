@@ -124,6 +124,11 @@ if __name__ == "__main__":
                 t_comp = (time.time() - iter_start_time) / opt.batch_size
                 exp.log_metrics(losses, step=total_iters)
                 exp.log_metric("sample_time", np.mean(iter_times))
+                for d in dir(model):
+                    if d.startswith("_should_compute") and isinstance(
+                        model.get(d), bool
+                    ):
+                        exp.log_metric(d, int(model.get(d)))
 
             # cache our latest model every <save_latest_freq> iterations
             if total_iters % opt.save_latest_freq == 0:
@@ -170,6 +175,11 @@ if __name__ == "__main__":
                 g["lr"] = g["lr"] * (1 - decay_epochs / (opt.n_epochs_decay + 1))
             for g in model.optimizer_D.param_groups:
                 g["lr"] = g["lr"] * (1 - decay_epochs / (opt.n_epochs_decay + 1))
+
+        lrs = {}
+        for g in model.optimizer_G.param_groups:
+            lrs["lr_" + g["group_name"]] = g["lr"]
+        exp.log_metrics(lrs)
 
         if decay_epochs > opt.n_epochs_decay:
             epoch = -2

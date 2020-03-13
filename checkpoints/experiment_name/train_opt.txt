@@ -45,11 +45,11 @@
                 load_size: 286                           
                        lr: 0.0002                        
            lr_decay_iters: 50                            
-                 lr_depth: 0.0002                        
-                  lr_gray: 0.0002                        
-                lr_jigsaw: 0.0002                        
+                 lr_depth: 0                             
+                  lr_gray: 0                             
+                lr_jigsaw: 0                             
                 lr_policy: linear                        
-              lr_rotation: 0.0002                        
+              lr_rotation: 0                             
          max_dataset_size: inf                           
                   message: None                          
                     model: continual                     	[default: cycle_gan]
