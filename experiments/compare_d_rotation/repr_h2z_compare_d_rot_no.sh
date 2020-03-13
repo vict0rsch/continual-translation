@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 #SBATCH --time=24:00:00
-#SBATCH -o ~/scratch/continual/slurm-%j.out
+#SBATCH -o /scratch/vsch/continual/slurm-%j.out
 
 
 export continual_dataset="h2z_d"

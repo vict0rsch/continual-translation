@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --account=rpp-bengioy
-#SBATCH --cpus-per-task=6
+#SBATCH --cpus-per-task=10
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 #SBATCH --time=24:00:00
@@ -23,7 +23,7 @@ else
     module load python/3.7.4
     module load httpproxy
     source $HOME/continual-translation/ctenv/bin/activate
-    cp /scratch/vsch/continual/$continual_dataset.zip $SLURM_TMPDIR
+    cp $SCRATCH/continual/$continual_dataset.zip $SLURM_TMPDIR
 fi
 
 cd $HOME/continual-translation
@@ -31,17 +31,18 @@ unzip $SLURM_TMPDIR/$continual_dataset.zip -d $SLURM_TMPDIR > /dev/null
 
 
 python train.py \
-    --num_threads 8 \
+    --num_threads 10 \
     --dataroot $SLURM_TMPDIR/$continual_dataset \
     --model continual \
-    --checkpoints_dir "/scratch/vsch/continual/checkpoints" \
+    --checkpoints_dir $SCRATCH/continual/checkpoints \
     --display_freq 2000 \
-    --batch_size 3 \
+    --batch_size 5 \
     --netG "continual" \
-    --git_hash="9bda085070c0a16f3191117bcc4a0ffbb1dd67ce" \
+    --init_type "kaiming" \
+    --git_hash="0307b38c6a57cd644c37430e4feb4e0a88c4c18c" \
     --name "repr_h2z_ffd_flow" \
     --task_schedule "representational" \
-    --message "repr_h2z_ffd_flow.sh" \
+    --message "radam + repr_h2z_ffd_flow.sh" \
     --lambda_CA 10 \
     --lambda_DA 1 \
     --lambda_CB 10 \
@@ -55,11 +56,7 @@ python train.py \
     --gray_loss_threshold 0.3 \
     --rotation_acc_threshold 0.85 \
     --jigsaw_acc_threshold 0.85 \
-    --lr_rotation 0.001 \
-    --lr_depth 0.001 \
-    --lr_gray 0.0005 \
-    --lr_jigsaw 0.001 \
+    --lr 0.0005 \
     --n_epochs_decay 100 \
     --n_epochs 200 \
-    --D_rotation \
     --repr_mode flow

@@ -58,7 +58,7 @@
                n_layers_D: 3                             
                      name: experiment_name               
                       ndf: 64                            
-                     netD: rotational                    	[default: basic]
+                     netD: basic                         
                      netG: continual                     	[default: resnet_9blocks]
                       ngf: 64                            
                no_dropout: True                          

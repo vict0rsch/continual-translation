@@ -4,7 +4,7 @@
 #SBATCH --gres=gpu:1
 #SBATCH --mem=32G
 #SBATCH --time=24:00:00
-#SBATCH -o ~/scratch/continual/slurm-%j.out
+#SBATCH -o /scratch/vsch/continual/slurm-%j.out
 
 
 export continual_dataset="h2z_d"
@@ -36,7 +36,7 @@ python train.py \
     --model continual \
     --checkpoints_dir $SCRATCH/continual/checkpoints \
     --display_freq 2000 \
-    --batch_size 5 \
+    --batch_size 3 \
     --netG "continual" \
     --git_hash="13078a3b90ffc1d2cc0482726dfcd8750d705ee4" \
     --name "seq_h2z_conti" \
