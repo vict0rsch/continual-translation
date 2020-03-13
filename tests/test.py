@@ -40,6 +40,7 @@ if __name__ == "__main__":
 
     g_step = False
     eval_model = False
+    test_metrics = True
     show_rot = False
     full_step = False
     merge_encoders = False
@@ -135,3 +136,49 @@ if __name__ == "__main__":
             }
         )
         print(encB.module.model[1].weight[0, 0, 0])
+
+    if test_metrics:
+        opt.task_schedule = "continual"
+
+        def print_computes(model):
+            for d in dir(model):
+                if d.startswith("_should_compute"):
+                    print("{:30}: {}".format(d, model.get(d)))
+            print("\n\n")
+
+        model = create_model(opt)
+        model.setup(opt)
+        metrics = {
+            "test_G_A_rotation_acc": 0,
+            "test_G_B_rotation_acc": 0,
+            "test_G_A_jigsaw_acc": 0,
+            "test_G_B_jigsaw_acc": 0,
+            "test_G_A_depth_loss": 10,
+            "test_G_B_depth_loss": 10,
+            "test_G_A_gray_loss": 10,
+            "test_G_B_gray_loss": 10,
+        }
+        print("--------------------")
+        model.update_task_schedule(metrics)
+        print_computes(model)
+
+        print("--------------------")
+        metrics["test_G_A_rotation_acc"] = metrics["test_G_B_rotation_acc"] = 1
+        model.update_task_schedule(metrics)
+        print_computes(model)
+
+        print("--------------------")
+        metrics["test_G_A_jigsaw_acc"] = metrics["test_G_B_jigsaw_acc"] = 1
+        model.update_task_schedule(metrics)
+        print_computes(model)
+
+        print("--------------------")
+        metrics["test_G_A_depth_loss"] = metrics["test_G_B_depth_loss"] = 0
+        metrics["test_G_A_jigsaw_acc"] = metrics["test_G_B_jigsaw_acc"] = 0
+        model.update_task_schedule(metrics)
+        print_computes(model)
+
+        print("--------------------")
+        metrics["test_G_A_gray_loss"] = metrics["test_G_B_gray_loss"] = 0
+        model.update_task_schedule(metrics)
+        print_computes(model)

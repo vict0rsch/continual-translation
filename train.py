@@ -88,12 +88,13 @@ if __name__ == "__main__":
     decay_epochs = 0
     while epoch > -2:
         epoch += 1
+        exp.log_parameter("curr_epoch", epoch)
         # outer loop for different epochs; we save the model by <epoch_count>,
         # <epoch_count>+<save_latest_freq>
         epoch_start_time = time.time()  # timer for entire epoch
         iter_data_time = time.time()  # timer for data loading per iteration
         epoch_iter = 0  # the number of training iterations in current epoch
-        print("--- epoch starting")
+        print(f"--- epoch {epoch} starting")
 
         for i, data in enumerate(dataset):  # inner loop within one epoch
             iter_start_time = time.time()  # timer for computation per iteration

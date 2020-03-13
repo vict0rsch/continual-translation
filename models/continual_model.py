@@ -945,7 +945,10 @@ class ContinualModel(BaseModel):
                 return
             else:
                 print("No schedule update: " + s)
-                self.exp.log_text("No schedule update: " + s + f" ({self.total_iters})")
+                if self.exp:
+                    self.exp.log_text(
+                        "No schedule update: " + s + f" ({self.total_iters})"
+                    )
 
     def continual_schedule(self, metrics):
         s = ""
@@ -993,7 +996,8 @@ class ContinualModel(BaseModel):
                 return
         if not self.should_compute("translation"):
             print("No schedule update: " + s)
-            self.exp.log_text("No schedule update: " + s + f" ({self.total_iters})")
+            if self.exp:
+                self.exp.log_text("No schedule update: " + s + f" ({self.total_iters})")
 
     def additional_schedule(self, metrics):
         for t in self.tasks:
@@ -1027,7 +1031,8 @@ class ContinualModel(BaseModel):
                             )
             else:
                 print("No update for " + s)
-                self.exp.log_text("No update for " + s + f" ({self.total_iters})")
+                if self.exp:
+                    self.exp.log_text("No update for " + s + f" ({self.total_iters})")
 
     def representational_traduction_schedule(self, metrics):
         task_conditions = True
@@ -1103,7 +1108,8 @@ class ContinualModel(BaseModel):
                 self.repr_is_frozen = True
         else:
             print("No schedule update:\n" + s)
-            self.exp.log_text("No schedule update:\n" + s + f"({self.total_iters})")
+            if self.exp:
+                self.exp.log_text("No schedule update:\n" + s + f"({self.total_iters})")
 
     def representational_schedule(self, metrics):
 
@@ -1169,7 +1175,10 @@ class ContinualModel(BaseModel):
                 self.repr_is_frozen = True
         else:
             print("No schedule update:\n" + s)
-            self.exp.log_text("No schedule update:\n" + s + f" ({self.total_iters})")
+            if self.exp:
+                self.exp.log_text(
+                    "No schedule update:\n" + s + f" ({self.total_iters})"
+                )
 
     def update_ref_encoder(self):
         alpha = self.opt.encoder_merge_ratio
@@ -1190,7 +1199,7 @@ class ContinualModel(BaseModel):
                     self.ref_encoder_B.to(self.opt.gpu_ids[0]), self.opt.gpu_ids
                 )
             else:
-                raise NotImplementedError("No update_ref_encoder without gpus")
+                print("No update_ref_encoder without gpus")
 
         else:
             if self.is_dp:
@@ -1224,7 +1233,7 @@ class ContinualModel(BaseModel):
                 self.ref_encoder_A = new_encoder_A
                 self.ref_encoder_B = new_encoder_B
             else:
-                raise NotImplementedError("No update_ref_encoder without gpus")
+                print("No update_ref_encoder without gpus")
 
         self.set_requires_grad([self.ref_encoder_A, self.ref_encoder_B], False)
 
