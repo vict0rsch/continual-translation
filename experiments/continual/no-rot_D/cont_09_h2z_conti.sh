@@ -7,7 +7,8 @@
 #SBATCH -o /scratch/vsch/continual/slurm-%j.out
 
 
-export continual_dataset="h2z_d"
+# export continual_dataset="h2z_d"
+export continual_dataset="continual_floods_d"
 
 if [[ $HOME == *"schmidtv"* ]];
 then
@@ -40,9 +41,9 @@ python train.py \
     --init_type "kaiming" \
     --netG "continual" \
     --git_hash="13078a3b90ffc1d2cc0482726dfcd8750d705ee4" \
-    --name "cont_09_h2z_conti" \
+    --name "cont_09_floods_conti" \
     --task_schedule "continual" \
-    --message "smaller lr no-rot_D + radam + cont_09_h2z_conti.sh" \
+    --message "cont_09_floods_conti smaller lr no-rot_D + radam + cont_09_floods_conti.sh" \
     --lambda_CA 10 \
     --lambda_DA 2 \
     --lambda_CB 10 \

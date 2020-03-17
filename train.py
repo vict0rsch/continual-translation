@@ -164,25 +164,25 @@ if __name__ == "__main__":
             % (epoch, opt.n_epochs + opt.n_epochs_decay, time.time() - epoch_start_time)
         )
         # model.update_learning_rate()  # update learning rates at the end of every epoch.
-        if epoch > opt.n_epochs:
-            if opt.model == "continual":
-                if model.should_compute("translation"):
-                    decay_epochs += 1
-            else:
+    if epoch > opt.n_epochs:
+        if opt.model == "continual":
+            if model.should_compute("translation"):
                 decay_epochs += 1
+        else:
+            decay_epochs += 1
 
-        if decay_epochs > 0:
-            for g in model.optimizer_G.param_groups:
-                g["lr"] = g["lr"] * (1 - decay_epochs / (opt.n_epochs_decay + 1))
-            for g in model.optimizer_D.param_groups:
-                g["lr"] = g["lr"] * (1 - decay_epochs / (opt.n_epochs_decay + 1))
-
-        lrs = {}
+    if decay_epochs > 0:
         for g in model.optimizer_G.param_groups:
-            lrs["lr_" + g["group_name"]] = g["lr"]
-        exp.log_metrics(lrs)
+            g["lr"] = g["lr"] * (1 - decay_epochs / (opt.n_epochs_decay + 1))
+        for g in model.optimizer_D.param_groups:
+            g["lr"] = g["lr"] * (1 - decay_epochs / (opt.n_epochs_decay + 1))
 
-        if decay_epochs > opt.n_epochs_decay:
-            epoch = -2
+    lrs = {}
+    for g in model.optimizer_G.param_groups:
+        lrs["lr_" + g["group_name"]] = g["lr"]
+    exp.log_metrics(lrs)
+
+    if decay_epochs > opt.n_epochs_decay:
+        epoch = -2
 
     exp.add_tag("finished")

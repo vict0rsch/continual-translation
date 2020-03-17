@@ -8,6 +8,7 @@
 
 
 export continual_dataset="h2z_d"
+export continual_dataset="continual_floods_d"
 
 if [[ $HOME == *"schmidtv"* ]];
 then
@@ -39,9 +40,9 @@ python train.py \
     --batch_size 3 \
     --netG "continual" \
     --git_hash="13078a3b90ffc1d2cc0482726dfcd8750d705ee4" \
-    --name "seq_h2z_conti" \
+    --name "par_floods_conti" \
     --task_schedule "parallel" \
-    --message "smaller lr no-rot_D + radam + seq_h2z_conti.sh" \
+    --message "par_floods_conti lr no-rot_D + radam + par_h2z_conti.sh" \
     --lambda_CA 10 \
     --lambda_DA 1 \
     --lambda_CB 10 \
