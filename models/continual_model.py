@@ -194,7 +194,7 @@ class ContinualModel(BaseModel):
                 "--auxiliary_tasks",
                 action="store",
                 type=str,
-                nargs="*",
+                nargs="+",
                 default=["rotation", "gray", "depth", "jigsaw"],
             )
             parser.add_argument(

@@ -36,7 +36,7 @@ python train.py \
     --model continual \
     --checkpoints_dir $SCRATCH/continual/checkpoints \
     --display_freq 2000 \
-    --batch_size 5 \
+    --batch_size 3 \
     --netG "continual" \
     --git_hash="b14b2b12eb6d0f60b5bb32fdf479a5dac88d8709" \
     --name "par_05" \
