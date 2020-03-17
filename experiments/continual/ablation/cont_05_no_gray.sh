@@ -59,4 +59,4 @@ python train.py \
     --n_epochs_decay 100 \
     --n_epochs 200 \
     --encoder_merge_ratio 0.5 \
-    --auxiliary_tasks=rotation jigsaw depth
+    --auxiliary_tasks="rotation, jigsaw, depth"

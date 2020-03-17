@@ -33,7 +33,9 @@ class UnalignedDataset(BaseDataset):
         BaseDataset.__init__(self, opt)
 
         if self.opt.netG == "continual":
-            self.tasks = AuxiliaryTasks(opt.auxiliary_tasks)
+            self.tasks = AuxiliaryTasks(
+                [t.strip() for t in opt.auxiliary_tasks.split(",")]
+            )
         self.load_depth = self.opt.netG == "continual"
         self.load_rotation = self.opt.netG == "continual"
 

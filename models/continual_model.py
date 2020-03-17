@@ -191,11 +191,7 @@ class ContinualModel(BaseModel):
                 help="Exp. moving average coefficient: ref = a * new + (1 - a) * old",
             )
             parser.add_argument(
-                "--auxiliary_tasks",
-                action="store",
-                type=str,
-                nargs="+",
-                default=["rotation", "gray", "depth", "jigsaw"],
+                "--auxiliary_tasks", type=str, default="rotation, gray, depth, jigsaw",
             )
             parser.add_argument(
                 "--D_rotation", action="store_true", default=False,
@@ -218,8 +214,7 @@ class ContinualModel(BaseModel):
                 a subclass of BaseOptions
         """
         BaseModel.__init__(self, opt)
-
-        self.tasks = AuxiliaryTasks(opt.auxiliary_tasks)
+        self.tasks = AuxiliaryTasks([t.strip() for t in opt.auxiliary_tasks.split(",")])
         # specify the training losses you want to print out.
         # The training/test scripts will call <BaseModel.get_current_losses>
         self.loss_names = [
