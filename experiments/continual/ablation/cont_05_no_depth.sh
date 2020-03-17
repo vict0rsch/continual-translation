@@ -39,9 +39,9 @@ python train.py \
     --batch_size 5 \
     --netG "continual" \
     --git_hash="b14b2b12eb6d0f60b5bb32fdf479a5dac88d8709" \
-    --name "cont_05_h2z_conti_2" \
+    --name "cont_05_no_depth" \
     --task_schedule "continual" \
-    --message "better lr-annealing smaller lr no-rot_D + radam + cont_05_h2z_conti.sh" \
+    --message "better lr-annealing smaller lr no-rot_D + radam + cont_05_no_depth.sh" \
     --lambda_CA 10 \
     --lambda_DA 1 \
     --lambda_CB 10 \
@@ -58,4 +58,5 @@ python train.py \
     --lr 0.0005 \
     --n_epochs_decay 100 \
     --n_epochs 200 \
-    --encoder_merge_ratio 0.5
+    --encoder_merge_ratio 0.5 \
+    --auxiliary_tasks=rotation jigsaw gray

@@ -7,7 +7,7 @@
 #SBATCH -o /scratch/vsch/continual/slurm-%j.out
 
 
-export continual_dataset="h2z_d"
+export continual_dataset="cont_floods_d"
 
 if [[ $HOME == *"schmidtv"* ]];
 then
@@ -38,14 +38,14 @@ python train.py \
     --display_freq 2000 \
     --batch_size 5 \
     --netG "continual" \
-    --git_hash="b14b2b12eb6d0f60b5bb32fdf479a5dac88d8709" \
-    --name "cont_05_h2z_conti_2" \
+    --git_hash="13078a3b90ffc1d2cc0482726dfcd8750d705ee4" \
+    --name "cont_10_h2z_conti" \
     --task_schedule "continual" \
-    --message "better lr-annealing smaller lr no-rot_D + radam + cont_05_h2z_conti.sh" \
-    --lambda_CA 10 \
-    --lambda_DA 1 \
-    --lambda_CB 10 \
-    --lambda_DB 1 \
+    --message "smaller lr no-rot_D + radam + cont_10_h2z_conti.sh" \
+    --lambda_CA 12 \
+    --lambda_DA 2 \
+    --lambda_CB 12 \
+    --lambda_DB 2 \
     --lambda_I 0.5 \
     --lambda_R 1 \
     --lambda_D 1 \
@@ -58,4 +58,4 @@ python train.py \
     --lr 0.0005 \
     --n_epochs_decay 100 \
     --n_epochs 200 \
-    --encoder_merge_ratio 0.5
+    --encoder_merge_ratio 1.0
