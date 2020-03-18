@@ -115,28 +115,36 @@ class UnalignedDataset(BaseDataset):
             Path(B_path).parent / "depths" / (Path(B_path).stem + ".png")
         ).convert("L")
 
-        im_dict_A = {
-            "A_real": A_img,
-            "A_depth_target": A_d_img,
-            "A_rotation": A_img,
-            "A_gray": A_img,
-            "A_jigsaw": A_img,
-        }
+        im_dict_A = {"A_real": A_img}
+        if "depth" in self.tasks.keys:
+            im_dict_A["A_depth_target"] = A_d_img
+        if "rotation" in self.tasks.keys:
+            im_dict_A["A_rotation"] = A_img
+        if "gray" in self.tasks.keys:
+            im_dict_A["A_gray"] = A_img
+        if "jigsaw" in self.tasks.keys:
+            im_dict_A["A_jigsaw"] = A_img
+
         ims_A = self.transform_A(im_dict_A)
-        ims_A["A_rotation_target"] = copy(ims_A["rotation_target"])
-        del ims_A["rotation_target"]
+        if "rotation" in self.tasks.keys:
+            ims_A["A_rotation_target"] = copy(ims_A["rotation_target"])
+            del ims_A["rotation_target"]
         imgs.update(ims_A)
 
-        im_dict_B = {
-            "B_real": B_img,
-            "B_depth_target": B_d_img,
-            "B_rotation": B_img,
-            "B_gray": B_img,
-            "B_jigsaw": B_img,
-        }
+        im_dict_B = {"B_real": B_img}
+        if "depth" in self.tasks.keys:
+            im_dict_B["B_depth_target"] = B_d_img
+        if "rotation" in self.tasks.keys:
+            im_dict_B["B_rotation"] = B_img
+        if "gray" in self.tasks.keys:
+            im_dict_B["B_gray"] = B_img
+        if "jigsaw" in self.tasks.keys:
+            im_dict_B["B_jigsaw"] = B_img
+
         ims_B = self.transform_B(im_dict_B)
-        ims_B["B_rotation_target"] = copy(ims_B["rotation_target"])
-        del ims_B["rotation_target"]
+        if "rotation" in self.tasks.keys:
+            ims_B["B_rotation_target"] = copy(ims_B["rotation_target"])
+            del ims_B["rotation_target"]
         imgs.update(ims_B)
 
         return imgs
