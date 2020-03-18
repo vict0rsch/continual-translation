@@ -503,18 +503,18 @@ class ContinualModel(BaseModel):
                     self.A_z_ref = self.ref_encoder_A(self.A_real)
                     self.B_z_ref = self.ref_encoder_B(self.B_real)
 
-            if should["identity"]:
+            if "identity" in should and should["identity"]:
                 self.A_idt = self.netG_A.module.decoder(self.B_z)
                 self.B_idt = self.netG_B.module.decoder(self.A_z)
 
-            if should["translation"]:
+            if "translation" in should and should["translation"]:
                 self.B_fake = self.netG_A.module.decoder(self.A_z)  # G_A(A)
                 self.A_rec = self.netG_B(self.B_fake)  # G_B(G_A(A))
                 self.A_fake = self.netG_B.module.decoder(self.B_z)  # G_B(B)
                 self.B_rec = self.netG_A(self.A_fake)  # G_A(G_B(B))
 
             for t in self.tasks:
-                if not should[t.key]:
+                if t.key not in should or not should[t.key]:
                     continue
 
                 if t.needs_z:
@@ -551,18 +551,18 @@ class ContinualModel(BaseModel):
                     self.A_z_ref = self.ref_encoder_A(self.A_real)
                     self.B_z_ref = self.ref_encoder_B(self.B_real)
 
-            if should["identity"]:
+            if "identity" in should and should["identity"]:
                 self.A_idt = self.netG_A.decoder(self.B_z)
                 self.B_idt = self.netG_B.decoder(self.A_z)
 
-            if should["translation"]:
+            if "translation" in should and should["translation"]:
                 self.B_fake = self.netG_A.decoder(self.A_z)  # G_A(A)
                 self.A_rec = self.netG_B(self.B_fake)  # G_B(G_A(A))
                 self.A_fake = self.netG_B.decoder(self.B_z)  # G_B(B)
                 self.B_rec = self.netG_A(self.A_fake)  # G_A(G_B(B))
 
             for t in self.tasks:
-                if not should[t.key]:
+                if t.key not in should or not should[t.key]:
                     continue
 
                 if t.needs_z:
@@ -737,7 +737,7 @@ class ContinualModel(BaseModel):
                 should[k] = self.should_compute(k)
 
         self.loss_G = 0
-        if should["depth"]:
+        if "depth" in should and should["depth"]:
             # print("depth loss")
             device = self.A_depth_pred.device
             self.loss_G_A_depth = self.depthCriterion(
@@ -749,7 +749,7 @@ class ContinualModel(BaseModel):
             self.loss_G += lambda_D * (self.loss_G_B_depth + self.loss_G_A_depth)
             lambda_total += 2 * lambda_D
 
-        if should["rotation"]:
+        if "rotation" in should and should["rotation"]:
             # print("rotation loss")
             device = self.A_rotation_pred.device
             self.loss_G_A_rotation = self.rotationCriterion(
@@ -763,7 +763,7 @@ class ContinualModel(BaseModel):
             self.loss_G += lambda_R * (self.loss_G_B_rotation + self.loss_G_A_rotation)
             lambda_total += 2 * lambda_R
 
-        if should["jigsaw"]:
+        if "jigsaw" in should and should["jigsaw"]:
             # print("jigsaw loss")
             device = self.A_jigsaw_pred.device
             self.loss_G_A_jigsaw = self.jigsawCriterion(
@@ -775,7 +775,7 @@ class ContinualModel(BaseModel):
             self.loss_G += lambda_J * (self.loss_G_B_jigsaw + self.loss_G_A_jigsaw)
             lambda_total += 2 * lambda_J
 
-        if should["identity"]:
+        if "identity" in should and should["identity"]:
             # print("identity loss")
             # Identity loss
             assert lambda_idt > 0
@@ -791,7 +791,7 @@ class ContinualModel(BaseModel):
             self.loss_G += self.loss_G_A_idt + self.loss_G_B_idt
             lambda_total += lambda_CA * lambda_idt + lambda_CB * lambda_idt
 
-        if should["gray"]:
+        if "gray" in should and should["gray"]:
             self.loss_G_A_gray = 0.1 * self.criterionGAN(
                 self.netD_A_gray(self.A_gray_pred)[0], True
             ) + 0.9 * self.criterionGray(self.A_gray_pred, self.A_real)
@@ -802,7 +802,7 @@ class ContinualModel(BaseModel):
             self.loss_G += (self.loss_G_A_gray + self.loss_G_B_gray) * lambda_G
             lambda_total += 2 * lambda_G
 
-        if should["translation"]:
+        if "translation" in should and should["translation"]:
             # print("translation loss")
             # GAN loss D_A(G_A(A))
             self.loss_G_A = (
